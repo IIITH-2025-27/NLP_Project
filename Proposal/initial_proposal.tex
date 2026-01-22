@@ -1,0 +1,53 @@
+documentclass[11pt]{article}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{setspace}
+\usepackage{titlesec}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+
+\title{\textbf{Emotion-Conditioned Lyric Generation Using Facial Emotion Recognition}}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\onehalfspacing
+
+\section{Proposed Pipeline Draft}
+This project proposes an end-to-end pipeline that connects facial emotion recognition with emotion-conditioned lyric generation. The system detects emotional states from facial inputs and uses this information to generate emotionally aligned song lyrics while enforcing linguistic and rhythmic constraints.
+
+\section{Dataset and CV Model Creation}
+Two datasets are used in this project. Dataset A consists of facial emotion recognition data and is used to train a computer vision (CV) model. This dataset contains labeled facial expressions corresponding to emotions such as sad, calm, and happy.
+
+A pre-trained CV model is fine-tuned on Dataset A to improve performance. The output of this model is a discrete facial emotional expression, which serves as input to the language generation module.
+
+Dataset B consists of song lyrics mapped to emotions and is used for training the language model. If Dataset B is not readily available, emotion labels will be generated using sentiment analysis tools such as Sentibert, followed by human supervision. The final emotion assigned to a song or lyric is determined using the majority emotion across its sentences, with human validation employed for cross-validation.
+
+
+\section{ Language Model Creation}
+The language model is trained using Dataset B. Given an emotion as input, the model generates new song lyrics that align with the specified emotional state. The goal is to ensure emotional coherence and creative expression in the generated text.
+
+\section{Constrained Decoding and System Behavior}
+The system uses the CMU Pronouncing Dictionary to enable constrained decoding during lyric generation. These constraints include enforcing rhyme and syllable limits.
+
+When the model is unable to find a suitable rhythmic or rhyming word, the system follows one of three defined behaviors:
+\begin{itemize}
+    \item Relax the constraint.
+    \item Backtrack to a previous state (computationally costly).
+    \item Abort the current generation and regenerate the line.
+\end{itemize}
+
+\section{Workflow of the Language Model}
+The workflow consists of two main steps. First, the emotion-conditioned language model generates a lyric line. During decoding, syllable limits and rhyme constraints are enforced at the end of the line. If no word satisfies the rhyme requirement, the system either relaxes the rhyme constraint or regenerates the line to preserve overall quality.
+
+\section{Evaluation}
+The generated lyrics are evaluated using a custom evaluation score designed to measure the effectiveness of emotion-driven lyric generation. This evaluation focuses on emotional alignment, lyrical coherence, and adherence to structural constraints.
+
+\end{document}
+
+
+
+
+
+@185499721453765
