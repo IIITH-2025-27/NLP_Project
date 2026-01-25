@@ -1,12 +1,13 @@
-documentclass[11pt]{article}
+\documentclass[11pt]{article}
 \usepackage{geometry}
 \geometry{margin=1in}
 \usepackage{setspace}
 \usepackage{titlesec}
+\usepackage{enumitem}
 
 \titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
 
-\title{\textbf{Emotion-Conditioned Lyric Generation Using Facial Emotion Recognition}}
+\title{\textbf{MERGE: Multimodal Emotion-Driven Rhythmic Lyric Generation}}
 \author{}
 \date{}
 
@@ -14,40 +15,128 @@ documentclass[11pt]{article}
 \maketitle
 \onehalfspacing
 
-\section{Proposed Pipeline Draft}
-This project proposes an end-to-end pipeline that connects facial emotion recognition with emotion-conditioned lyric generation. The system detects emotional states from facial inputs and uses this information to generate emotionally aligned song lyrics while enforcing linguistic and rhythmic constraints.
+\section{Motivation and Design Rationale}
 
-\section{Dataset and CV Model Creation}
-Two datasets are used in this project. Dataset A consists of facial emotion recognition data and is used to train a computer vision (CV) model. This dataset contains labeled facial expressions corresponding to emotions such as sad, calm, and happy.
+The original motivation of this project was to build an emotion-aware system capable of generating music based on a user’s emotional state using physiological sensor data. However, large-scale publicly available datasets combining sensor signals with emotional and musical annotations are limited, making reliable emotion detection from sensors difficult within practical constraints.
 
-A pre-trained CV model is fine-tuned on Dataset A to improve performance. The output of this model is a discrete facial emotional expression, which serves as input to the language generation module.
+Additionally, direct music generation primarily involves audio signal modeling and specialized synthesis techniques, which lie outside the core scope of natural language processing. To preserve the central objective of emotion-driven creative generation while remaining within the NLP domain, this work adopts facial emotion recognition as a practical alternative for emotion sensing and reformulates the generation task as emotion-conditioned lyric generation.
 
-Dataset B consists of song lyrics mapped to emotions and is used for training the language model. If Dataset B is not readily available, emotion labels will be generated using sentiment analysis tools such as Sentibert, followed by human supervision. The final emotion assigned to a song or lyric is determined using the majority emotion across its sentences, with human validation employed for cross-validation.
+Song lyrics play a significant role in conveying emotional content in music, making them a suitable textual representation for studying emotionally aligned creative generation using language models.
 
+\section{Proposed Pipeline}
 
-\section{ Language Model Creation}
-The language model is trained using Dataset B. Given an emotion as input, the model generates new song lyrics that align with the specified emotional state. The goal is to ensure emotional coherence and creative expression in the generated text.
+This project proposes an end-to-end multimodal pipeline that connects facial emotion recognition with emotion-conditioned and rhythm-aware lyric generation. The system detects emotional states from facial inputs and uses this information to generate emotionally aligned song lyrics while enforcing linguistic and rhythmic constraints such as rhyme schemes.
 
-\section{Constrained Decoding and System Behavior}
-The system uses the CMU Pronouncing Dictionary to enable constrained decoding during lyric generation. These constraints include enforcing rhyme and syllable limits.
+The objective is to bridge affective computing and creative natural language generation by enabling facial expressions to directly influence poetic and lyrical output.
 
-When the model is unable to find a suitable rhythmic or rhyming word, the system follows one of three defined behaviors:
-\begin{itemize}
-    \item Relax the constraint.
-    \item Backtrack to a previous state (computationally costly).
-    \item Abort the current generation and regenerate the line.
+\section{Facial Emotion Recognition Module}
+
+\subsection{Dataset}
+
+For facial emotion recognition (FER), one of the following publicly available datasets will be used:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{FER2013}: A widely used dataset containing 35,887 grayscale facial images of size $48 \times 48$ labeled into seven emotions: angry, disgust, fear, happy, sad, surprise, and neutral.
+    \item \textbf{RAF-DB}: A higher-quality dataset containing real-world facial images with annotated basic and compound emotions, providing more realistic facial expressions.
 \end{itemize}
 
-\section{Workflow of the Language Model}
-The workflow consists of two main steps. First, the emotion-conditioned language model generates a lyric line. During decoding, syllable limits and rhyme constraints are enforced at the end of the line. If no word satisfies the rhyme requirement, the system either relaxes the rhyme constraint or regenerates the line to preserve overall quality.
+\subsection{Model}
 
-\section{Evaluation}
-The generated lyrics are evaluated using a custom evaluation score designed to measure the effectiveness of emotion-driven lyric generation. This evaluation focuses on emotional alignment, lyrical coherence, and adherence to structural constraints.
+A convolutional neural network (CNN), such as ResNet-18 or MobileNet, will be used as the base architecture. A pre-trained model will be fine-tuned on the selected FER dataset to classify facial expressions into discrete emotional categories. The predicted emotion label serves as input to the lyric generation module.
+
+\section{Lyric Dataset and Emotion Labeling}
+
+\subsection{Lyric Corpus}
+
+For training the language model, a large-scale lyrics corpus will be used:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{WASABI Song Corpus}: A multilingual dataset containing over 1.7 million songs with lyrics and metadata, suitable for large-scale lyric modeling.
+    \item Alternatively, curated lyric datasets from Genius or Kaggle repositories may be used for faster experimentation.
+\end{itemize}
+
+Only English-language lyrics will be used in the initial phase of this project.
+
+\subsection{Emotion Label Assignment}
+
+Since most lyric datasets do not contain reliable emotion labels, emotions will be assigned using an automatic emotion classification model trained on the GoEmotions dataset, which contains 27 fine-grained emotion categories.
+
+The predicted fine-grained emotions will be mapped into a smaller set of target emotions (e.g., happy, sad, angry, calm). Song-level emotion labels will be obtained by aggregating emotion predictions across lyric lines or verses. A subset of samples will be manually verified to validate labeling quality.
+
+\section{Emotion-Conditioned Language Model}
+
+A transformer-based language model such as GPT-2 will be fine-tuned on the emotion-labeled lyric corpus. Control tokens will be used to condition generation on emotion, for example:
+
+\begin{verbatim}
+<EMO=sad> lyric lines ...
+\end{verbatim}
+
+The model is trained to generate new lyrical content that reflects the emotional category specified in the control token, encouraging both emotional consistency and creative variation.
+
+\section{Rhythm and Rhyme-Constrained Decoding}
+
+\subsection{Phonetic Constraints}
+
+To enforce rhythmic structure, the CMU Pronouncing Dictionary will be used to obtain phoneme sequences, syllable counts, and rhyme groups for words.
+
+Each generated lyric line will be constrained by:
+
+\begin{itemize}[leftmargin=*]
+    \item A maximum syllable budget per line.
+    \item A predefined rhyme scheme (e.g., AABB or ABAB).
+\end{itemize}
+
+\subsection{Constrained Decoding Strategy}
+
+During decoding, candidate words proposed by the language model are filtered based on phonetic constraints. Words that violate syllable limits or rhyme requirements are rejected. If no valid continuation exists, the system performs one of the following actions:
+
+\begin{itemize}[leftmargin=*]
+    \item Relax the phonetic constraint.
+    \item Backtrack to previous tokens.
+    \item Regenerate the entire line.
+\end{itemize}
+
+This ensures rhythmic structure is enforced during generation rather than repaired post hoc.
+
+\section{Evaluation Metric: REDS Score}
+
+Standard text generation metrics such as BLEU or ROUGE are unsuitable for evaluating creative lyric generation. Therefore, this project proposes a composite evaluation metric named REDS Score, which integrates four complementary dimensions:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{R -- Rhythm and Rhyme Consistency}: Measures adherence to syllable budgets and rhyme schemes using phonetic analysis.
+    \item \textbf{E -- Emotional Alignment}: Evaluates whether generated lyrics match the target emotion using an independent emotion classifier.
+    \item \textbf{D -- Diversity}: Measures lexical diversity using distinct $n$-gram ratios to avoid repetitive outputs.
+    \item \textbf{S -- Semantic Coherence}: Measures topical continuity between consecutive lyric lines using sentence embedding similarity (e.g., SBERT).
+\end{itemize}
+
+The final REDS score is computed as a weighted combination:
+
+\[
+REDS = \alpha R + \beta E + \gamma D + \delta S, \quad \alpha + \beta + \gamma + \delta = 1
+\]
+
+Initial weights will be selected based on task importance and later refined using regression against human evaluation scores to ensure correlation with perceived lyric quality.
+
+\section{Experimental Evaluation}
+
+The system will be evaluated through:
+
+\begin{itemize}[leftmargin=*]
+    \item Automatic REDS score comparison between baseline and constrained models.
+    \item Ablation studies removing rhythm constraints or emotion conditioning.
+    \item Human evaluation of emotional accuracy and lyrical quality for selected samples.
+\end{itemize}
+
+This allows both quantitative and qualitative assessment of system performance.
+
+\section{Expected Contributions}
+
+The project aims to contribute:
+
+\begin{itemize}[leftmargin=*]
+    \item A multimodal pipeline connecting facial emotion recognition with lyric generation.
+    \item A rhythm-aware constrained decoding framework for emotion-controlled lyric generation.
+    \item The proposed REDS metric for automatic evaluation of emotionally aligned rhythmic lyrics.
+\end{itemize}
 
 \end{document}
-
-
-
-
-
-@185499721453765
