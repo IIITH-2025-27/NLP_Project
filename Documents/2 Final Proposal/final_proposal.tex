@@ -1,0 +1,116 @@
+\documentclass[11pt]{article}
+
+% ACL style (two-column, review mode)
+\usepackage{acl}
+
+% Standard ACL packages
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{url}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\setlist{nosep,leftmargin=*}
+
+\title{MERGE: Multimodal Emotion-Driven Rhythmic Lyric Generation}
+
+\author{Abhay Sharma, Ankit Kumar, Hritik Ranjan, Vikash Kumar}
+
+\begin{document}
+% \aclfinalcopy
+\maketitle
+
+\begin{abstract}
+We propose MERGE, a multimodal system for generating rhythm-aware song lyrics conditioned on emotions inferred from facial expressions. The task is formulated as a controlled creative text generation problem with explicit linguistic constraints. MERGE addresses three core challenges: (1) emotion-conditioned language modeling, (2) constrained decoding for rhythmic and rhyming structure, and (3) the design of a task-specific automatic evaluation metric that goes beyond surface-level n-gram overlap for assessing creative lyric generation.
+\end{abstract}
+
+\section{Introduction}
+
+The motivation of this project is to build an emotion-aware system capable of generating creative musical content based on a user’s emotional state inferred from sensory inputs. Direct music synthesis conditioned on physiological or multimodal sensor data poses significant challenges due to limited dataset availability, high dimensionality of audio generation, and complex alignment between emotional intent and musical structure.
+
+To preserve the objective of emotion-driven creative generation while remaining within the methodological scope of natural language processing (NLP), this project reformulates the task as emotion-conditioned lyric generation. Facial emotion recognition is adopted as a practical and widely studied modality for emotion sensing, while song lyrics serve as the creative output modality. Lyrics function as a primary textual carrier of emotional expression in music, making them a suitable medium for studying emotion-controlled and structurally constrained language generation.
+
+This proposal investigates whether visual emotion signals can be used as reliable control inputs to guide both the semantic content and structural properties of generated text. Specifically, we study whether facial emotion recognition can effectively condition lyric generation, and whether rhythmic constraints such as syllable count and rhyme can be enforced during decoding without degrading emotional alignment or linguistic fluency.
+
+\section{Related Work}
+
+Facial emotion recognition has achieved strong performance using deep convolutional neural networks, with ResNet-based and MobileNet architectures reporting competitive results on benchmark datasets such as FER2013 and RAF-DB. In NLP, prior work on controlled text generation has explored conditional fine-tuning, control tokens, and attribute-guided decoding to steer generation toward specific styles or emotions. Separately, research on poetry and lyric generation has investigated enforcing rhyme schemes and meter using phonetic resources such as the CMU Pronouncing Dictionary.
+
+However, existing work typically addresses these components in isolation. The integration of facial emotion recognition with rhythm-constrained, emotion-conditioned lyric generation, along with the design of task-specific evaluation metrics for such creative outputs, remains relatively underexplored. MERGE aims to bridge this gap by unifying multimodal emotion inference, constrained generation, and evaluation within a single framework.
+
+\section{Proposed Method}
+
+This project proposes an end-to-end multimodal pipeline that connects facial emotion recognition
+with emotion-conditioned and rhythm-aware lyric generation. The system detects emotional states
+from facial inputs and uses this information to generate emotionally aligned song lyrics while
+enforcing linguistic and rhythmic constraints such as rhyme schemes.
+The objective is to bridge affective computing and creative natural language generation by
+enabling facial expressions to directly influence poetic and lyrical output.
+\subsection{Facial Emotion Recognition}
+
+Facial emotion recognition is performed using a convolutional neural network, such as ResNet-18 or MobileNet, fine-tuned on publicly available facial expression datasets including FER2013 or RAF-DB. Input facial images are classified into seven basic emotion categories: angry, disgust, fear, happy, sad, surprise, and neutral. The predicted emotion label is used as a discrete control signal that conditions the downstream lyric generation process.
+
+\subsection{Lyric Dataset and Emotion Labeling}
+
+The language model is trained on English-language song lyrics obtained from large-scale public lyric corpora such as the WASABI Song Corpus. Since explicit emotion annotations are not available for most lyric datasets, emotion labels are assigned automatically using an emotion classifier trained on the GoEmotions dataset. Emotion predictions are first obtained at the line level and subsequently aggregated to obtain a song-level emotion label using confidence-weighted majority voting. Fine-grained emotion categories are mapped to a smaller set of target emotions (e.g., happy, sad, angry, calm) to align with the facial emotion classes.
+
+\subsection{Emotion-Conditioned Language Model}
+
+The lyric generation component is framed as a controlled text generation task. A transformer-based language model, such as GPT-2 or a comparable lightweight open-source architecture, is fine-tuned on the lyric corpus using explicit emotion control tokens (e.g., \texttt{<EMO=sad>}). During training, the control token is prepended to each lyric sequence, enabling the model to learn associations between emotional conditions and linguistic patterns. A non-conditioned language model serves as a baseline to quantify the effect of emotion control on generated outputs.
+
+\subsection{Rhythm-Constrained Decoding}
+
+To enforce rhythmic and rhyming structure, constrained decoding is applied during lyric generation. The CMU Pronouncing Dictionary is used to obtain syllable counts and phonetic representations for rhyme detection. Each generated lyric line must satisfy a predefined syllable budget and adhere to a specified rhyme scheme (e.g., AABB or ABAB). Constraints are enforced during decoding by filtering candidate tokens that violate syllable or rhyme requirements. Hard constraints are applied within each line, while soft back-off strategies allow constraint relaxation or line regeneration if decoding becomes infeasible. This approach ensures that rhythmic structure is enforced during generation rather than through post-processing.
+
+\section{Evaluation}
+
+Evaluating creative language generation poses challenges, as standard metrics such as BLEU or ROUGE fail to capture emotional fidelity and structural quality. We propose \textbf{REDS}, a composite evaluation metric that integrates multiple complementary aspects of lyric quality:
+
+\begin{itemize}
+    \item \textbf{R -- Rhythm and Rhyme Consistency}, measured via phonetic and syllabic analysis,
+    \item \textbf{E -- Emotional Alignment}, assessed using an independent emotion classifier,
+    \item \textbf{D -- Distinctiveness}, measured using distinct $n$-gram ratios,
+    \item \textbf{S -- Semantic Coherence}, computed using sentence embedding similarity.
+\end{itemize}
+
+The final score is computed as:
+\[
+REDS = \alpha R + \beta E + \gamma D + \delta S, \quad \alpha + \beta + \gamma + \delta = 1
+\]
+
+Initial weights prioritize emotional alignment and rhythmic structure. The metric is validated by measuring its correlation with human evaluation scores using rank-based correlation metrics.
+
+\section{Experimental Plan and Expected Contributions}
+
+Planned experiments include automatic evaluation using the REDS metric, ablation studies isolating the impact of emotion conditioning and rhythmic constraints, and human evaluation focusing on emotional accuracy, rhythmic quality, and overall lyrical coherence.
+
+The expected contributions of this project are:
+\begin{itemize}
+    \item A multimodal NLP pipeline connecting facial emotion recognition to controllable lyric generation,
+    \item A rhythm-aware constrained decoding framework for creative text generation,
+    \item A task-specific evaluation metric for emotionally aligned and rhythmically structured lyrics.
+\end{itemize}
+
+\section*{References}
+
+\begin{enumerate}[leftmargin=*]
+\item Goodfellow, I. J., et al. (2013). Challenges in representation learning. \url{https://arxiv.org/abs/1307.0414}
+\item Li, S., Deng, W., \& Du, J. (2017). Expression recognition in the wild. \url{https://arxiv.org/abs/1711.03917}
+\item Radford, A., et al. (2019). Language models are unsupervised multitask learners. \url{https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf}
+\item Demszky, D., et al. (2020). GoEmotions. \url{https://arxiv.org/abs/2005.00547}
+\item Ghazvininejad, M., et al. (2016). Generating topical poetry. \url{https://aclanthology.org/D16-1126.pdf}
+\item Meseguer-Brocal, G., et al. (2017). WASABI song corpus. \url{https://hal.science/hal-01589250/document}
+\end{enumerate}
+
+\end{document}
