@@ -101,7 +101,7 @@ git commit -m "Resolved merge conflicts"
 
 ## �🚫 Important Rules
 
-- ❌ Never work directly on master
+- ❌ Never work directly on master(except for Abhay)
 - ❌ Never merge unfinished work
 - ✅ Always sync your branch before starting work
 - ❌ No force pushes on master
