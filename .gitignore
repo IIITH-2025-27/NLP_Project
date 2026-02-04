@@ -12,3 +12,9 @@
 *.nav
 *.snm
 *.vrb
+NLP_Venv/
+__pycache__/
+*.pyc
+*.DS_Store
+*.vscode/
+ipynb_checkpoints/
