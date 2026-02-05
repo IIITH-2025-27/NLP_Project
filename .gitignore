@@ -21,3 +21,8 @@ __pycache__/
 *.pth
 *.csv
 *.json
+venv/
+.venv/
+Models/Notebooks/venv/
+*/venv/
+*/.venv/
