@@ -19,3 +19,10 @@ __pycache__/
 *.vscode/
 .ipynb_checkpoints/
 *.pth
+*.csv
+*.json
+venv/
+.venv/
+Models/Notebooks/venv/
+*/venv/
+*/.venv/

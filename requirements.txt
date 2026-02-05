@@ -1,0 +1,17 @@
+# Deep learning framework
+torch
+torchvision          # Image transforms & pretrained models (ResNet)
+
+# Data handling
+pandas               # Data manipulation & CSV reading
+numpy                # Numerical operations & array processing
+
+# Visualization
+matplotlib           # Plotting & visualization
+
+# Image processing
+pillow               # Image loading & preprocessing
+
+# Utilities
+tqdm                 # Progress bars for training loops
+scikit-learn         # Metrics, evaluation & confusion matrix
