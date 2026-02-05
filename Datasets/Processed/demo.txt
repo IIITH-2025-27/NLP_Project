@@ -1,0 +1,1 @@
+put only processed data(.csv file) inside this folder(if any).
