@@ -15,3 +15,4 @@ pillow               # Image loading & preprocessing
 # Utilities
 tqdm                 # Progress bars for training loops
 scikit-learn         # Metrics, evaluation & confusion matrix
+datasets             # Hugging Face datasets library for loading data
