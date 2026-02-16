@@ -17,3 +17,7 @@ https://www.kaggle.com/datasets/vikashkumar999/spotify-dataset
 
 ### Processed Datasets
 
+#### Cleaned Genius Dataset
+```bash
+https://www.kaggle.com/datasets/ankit477/genius-dataset-cleaned
+```
