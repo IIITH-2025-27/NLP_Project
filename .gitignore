@@ -26,4 +26,5 @@ venv/
 Models/Notebooks/venv/
 */venv/
 */.venv/
+.song_lyrics.csv
 Models/Notebooks/OTHER_THINGS/
