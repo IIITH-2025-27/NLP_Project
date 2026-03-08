@@ -21,3 +21,8 @@ https://www.kaggle.com/datasets/vikashkumar999/spotify-dataset
 ```bash
 https://www.kaggle.com/datasets/ankit477/genius-dataset-cleaned
 ```
+
+#### Emotions Mapped Genius Dataset
+```bash
+https://www.kaggle.com/datasets/ankit477/lyrics-with-mapped-emotions
+```
