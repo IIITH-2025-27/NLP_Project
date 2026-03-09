@@ -1,3 +1,0 @@
-link to resnet trained models and results 
-kaggle --> https://www.kaggle.com/datasets/hritik567/fer-hypertuning-checkpoints 
-google drive --> https://drive.google.com/drive/folders/1amWTLh-jdjT_Hg1m_IgyjQzHdwAadYAf?usp=sharing
