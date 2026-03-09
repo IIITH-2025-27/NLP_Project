@@ -1,4 +1,4 @@
-# MERGE: Multimodal Emotion-Driven Rhythmic Lyric Generation
+# MERGE: Multimodal Emotion-Driven Rhythmic Lyric Generation Engine
 
 A multimodal NLP system that generates rhythm-aware song lyrics conditioned on emotions inferred from facial expressions.
 
