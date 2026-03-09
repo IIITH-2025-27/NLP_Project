@@ -1,0 +1,248 @@
+/* Auth Page Styles */
+.auth-page {
+  min-height: 100vh;
+  max-height: 100vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.auth-background {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+  overflow: hidden;
+}
+
+.auth-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(99, 102, 241, 0.5);
+  border-radius: 50%;
+  animation: float calc(10s + var(--i) * 2s) ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.3s);
+  top: calc(var(--i) * 5%);
+  left: calc(var(--i) * 5%);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) translateX(0); }
+  25% { transform: translateY(-20px) translateX(10px); }
+  50% { transform: translateY(-30px) translateX(-10px); }
+  75% { transform: translateY(-15px) translateX(15px); }
+}
+
+.auth-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  width: 100%;
+  max-height: 90vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+  align-items: center;
+}
+
+.auth-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.auth-brand-section {
+  text-align: left;
+}
+
+.brand-logo {
+  font-size: 3.5rem;
+  color: var(--primary);
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.brand-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+
+.brand-tagline {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.auth-features {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+  transition: var(--transition);
+}
+
+.feature-item:hover {
+  transform: translateX(10px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.feature-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.feature-content h3 {
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.feature-content p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.auth-right {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-tab {
+  padding: 0.875rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.auth-tab.active {
+  color: var(--text-primary);
+}
+
+.auth-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.auth-tab:hover:not(.active) {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.auth-form-container {
+  padding: 1.5rem;
+}
+
+.auth-form-title {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.auth-form-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 968px) {
+  .auth-container {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .auth-left {
+    text-align: center;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  
+  .feature-item {
+    max-width: 400px;
+  }
+  
+  .brand-logo {
+    font-size: 3rem;
+  }
+  
+  .brand-title {
+    font-size: 2rem;
+  }
+
+  .brand-tagline {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-page {
+    padding: 1rem;
+  }
+  
+  .brand-logo {
+    font-size: 3rem;
+  }
+  
+  .brand-title {
+    font-size: 2rem;
+  }
+  
+  .auth-features {
+    display: none;
+  }
+  
+  .auth-form-container {
+    padding: 1.5rem;
+  }
+}

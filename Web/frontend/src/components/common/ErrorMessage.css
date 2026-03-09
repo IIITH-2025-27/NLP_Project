@@ -1,0 +1,42 @@
+/* Error Message Component Styles */
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  color: #fca5a5;
+  animation: fadeIn 0.3s ease;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.error-text {
+  flex: 1;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.error-close {
+  background: none;
+  border: none;
+  color: #fca5a5;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.error-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+}

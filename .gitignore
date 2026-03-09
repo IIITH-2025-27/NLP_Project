@@ -28,3 +28,14 @@ Models/Notebooks/venv/
 */.venv/
 .song_lyrics.csv
 Models/Notebooks/OTHER_THINGS/
+
+# Web Application
+# Web/backend/.env
+# Web/frontend/.env
+Web/frontend/.env.local
+Web/frontend/.env.production
+Web/frontend/node_modules/
+Web/frontend/dist/
+Web/frontend/build/
+Web/backend/__pycache__/
+Web/backend/*.pyc

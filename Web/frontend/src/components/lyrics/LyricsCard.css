@@ -1,0 +1,35 @@
+/* Lyrics Card Component */
+.lyrics-card {
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--emotion-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 20px rgba(var(--emotion-color), 0.15);
+  animation: fadeIn 0.5s ease 0.2s backwards;
+  margin-top: 1.5rem;
+}
+
+.lyrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.lyrics-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lyrics-text {
+  font-family: 'Georgia', serif;
+  font-size: 0.95rem;
+  line-height: 1.8;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 1rem 0;
+}
