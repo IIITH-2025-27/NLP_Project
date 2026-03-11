@@ -47,22 +47,42 @@ const apiService = {
       body: JSON.stringify({ name, email, password }),
     }),
 
+  requestOTP: (name, email, password) =>
+    request("/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password }),
+    }),
+
+  verifyOTP: (email, otp) =>
+    request("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+
+  resendOTP: (email) =>
+    request("/auth/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
   login: (email, password) =>
     request("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
-  // Analysis endpoint
-  analyze: (text) =>
-    request("/analyze", {
+  // ML/AI endpoints
+  
+  // Get emotion from text
+  getEmotionFromText: (text) =>
+    request("/getEmotionFromText", {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
 
-  // Image analysis endpoint
-  analyzeImage: async (imageFile) => {
-    const url = `${API_BASE_URL}/analyze-image`;
+  // Get emotion from image
+  getEmotionFromImage: async (imageFile) => {
+    const url = `${API_BASE_URL}/getEmotionFromImage`;
     const token = storageService.getToken();
 
     const formData = new FormData();
@@ -93,11 +113,58 @@ const apiService = {
     }
   },
 
-  // History endpoints
-  getHistory: () => request("/history"),
+  // Get lyrics for emotion
+  getLyricsForEmotion: (emotion) =>
+    request("/getLyricsForEmotion", {
+      method: "POST",
+      body: JSON.stringify({ emotion }),
+    }),
 
-  deleteHistory: (id) =>
-    request(`/history/${id}`, {
+  // Legacy analyze endpoint (calls getEmotionFromText)
+  analyze: (text) =>
+    request("/getEmotionFromText", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
+  // Legacy analyzeImage endpoint (calls getEmotionFromImage)
+  analyzeImage: async (imageFile) => {
+    return apiService.getEmotionFromImage(imageFile);
+  },
+
+  // Chat endpoints
+  getChats: () => request("/chats"),
+
+  getChat: (chatId) => request(`/chats/${chatId}`),
+
+  createChat: (title = "New Chat") =>
+    request("/chats", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+
+  updateChat: (chatId, data) =>
+    request(`/chats/${chatId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteChat: (chatId) =>
+    request(`/chats/${chatId}`, {
+      method: "DELETE",
+    }),
+
+  // Message endpoints
+  getMessages: (chatId) => request(`/chats/${chatId}/messages`),
+
+  createMessage: (chatId, messageData) =>
+    request(`/chats/${chatId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(messageData),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/messages/${messageId}`, {
       method: "DELETE",
     }),
 

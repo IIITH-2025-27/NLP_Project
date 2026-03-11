@@ -47,18 +47,16 @@ export const isValidEmail = (email) => {
 };
 
 /**
- * Get emotion color
+ * Get emotion color (6 FER emotions)
  */
 export const getEmotionColor = (emotion) => {
   const colors = {
-    joy: "#FFD93D",
-    sadness: "#6BA3BE",
-    anger: "#FF6B6B",
-    fear: "#845EC2",
-    love: "#FF9EAA",
-    surprise: "#4ECDC4",
-    disgust: "#4CAF50",
-    anticipation: "#FF9800",
+    Happy: "#FFD93D",
+    Sad: "#6BA3BE",
+    Angry: "#FF6B6B",
+    Fear: "#845EC2",
+    Surprise: "#4ECDC4",
+    Neutral: "#95A5A6",
   };
   return colors[emotion] || "#888";
 };

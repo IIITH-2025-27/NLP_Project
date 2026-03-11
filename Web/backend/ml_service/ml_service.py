@@ -1,32 +1,20 @@
 import random
-from PIL import Image
-import io
+import sys
+import os
 
-# Emotion Configuration
-EMOTIONS = ["joy", "sadness", "anger", "fear", "love", "surprise", "disgust", "anticipation"]
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Map image emotion labels (from FER2013 dataset) to our emotion system
-# FER2013 has: 0=Angry, 1=Disgust, 2=Fear, 3=Happy, 4=Sad, 5=Surprise, 6=Neutral
-IMAGE_EMOTION_MAP = {
-    0: "anger",
-    1: "disgust", 
-    2: "fear",
-    3: "joy",
-    4: "sadness",
-    5: "surprise",
-    6: "anticipation"  # neutral maps to anticipation
-}
+# Import constants from parent directory
+from constants import (
+    EMOTION_META,
+    LYRIC_GEN_MODEL_NAME,
+    HF_EMOTION_MODEL
+)
 
-EMOTION_META = {
-    "joy":         {"emoji": "✨", "color": "#FFD93D", "description": "Radiating happiness"},
-    "sadness":     {"emoji": "🌧️", "color": "#6BA3BE", "description": "Melancholic undertones"},
-    "anger":       {"emoji": "🔥", "color": "#FF6B6B", "description": "Burning intensity"},
-    "fear":        {"emoji": "🌑", "color": "#845EC2", "description": "Shadowed anxiety"},
-    "love":        {"emoji": "💖", "color": "#FF9EAA", "description": "Warm affection"},
-    "surprise":    {"emoji": "⚡", "color": "#4ECDC4", "description": "Unexpected wonder"},
-    "disgust":     {"emoji": "🌿", "color": "#4CAF50", "description": "Rejecting repulsion"},
-    "anticipation":{"emoji": "🌅", "color": "#FF9800", "description": "Eager expectation"},
-}
+# Import ML service modules
+from .text_to_emotion import get_emotion_from_text
+from .image_to_emotion import predict_emotion_from_image
 
 # Dummy Lyrics Database
 DUMMY_LYRICS = {
@@ -67,43 +55,24 @@ DUMMY_LYRICS = {
 
 def predict_emotion(text: str) -> dict:
     """
-    Dummy emotion classifier
-    In production, replace with actual ML model
+    Predict emotion from text using Hugging Face model
+    Uses SamLowe/roberta-base-go_emotions model
+    
+    Raises:
+        Exception: If HF API fails, the error is propagated to the caller
     """
-    text_lower = text.lower()
-    keyword_map = {
-        "joy":          ["happy", "joy", "great", "wonderful", "excited", "amazing", "love", "laugh", "smile"],
-        "sadness":      ["sad", "cry", "miss", "lost", "alone", "empty", "grief", "heartbreak", "tears"],
-        "anger":        ["angry", "hate", "furious", "rage", "frustrated", "annoyed", "mad", "outrage"],
-        "fear":         ["scared", "afraid", "fear", "terrified", "anxious", "worried", "dread", "panic"],
-        "love":         ["love", "adore", "cherish", "heart", "darling", "beloved", "tender", "warm"],
-        "surprise":     ["surprised", "shocked", "unexpected", "wow", "unbelievable", "sudden", "astonished"],
-        "disgust":      ["disgust", "gross", "repulsive", "awful", "horrible", "revolting", "nauseating"],
-        "anticipation": ["waiting", "expecting", "hope", "soon", "tomorrow", "excited", "looking forward"],
-    }
-    
-    scores = {emotion: 0.0 for emotion in EMOTIONS}
-    for emotion, keywords in keyword_map.items():
-        for kw in keywords:
-            if kw in text_lower:
-                scores[emotion] += 1.0
-    
-    total = sum(scores.values())
-    if total == 0:
-        detected = random.choice(EMOTIONS)
-        scores[detected] = 1.0
-        total = 1.0
-    
-    normalized = {e: round(v / total, 3) for e, v in scores.items()}
-    top_emotion = max(normalized, key=normalized.get)
-    confidence = round(normalized[top_emotion] + random.uniform(0.05, 0.15), 3)
-    confidence = min(confidence, 0.99)
+    # Use the Hugging Face model for emotion detection
+    emotion_result = get_emotion_from_text(text)
+    top_emotion = emotion_result["emotion"]
+    confidence = emotion_result["confidence"]
+    scores = emotion_result["scores"]
     
     return {
         "emotion": top_emotion,
         "confidence": confidence,
-        "scores": normalized,
+        "scores": scores,
         "meta": EMOTION_META[top_emotion],
+        "model": HF_EMOTION_MODEL
     }
 
 
@@ -118,56 +87,21 @@ def generate_lyrics(emotion: str) -> dict:
     return {
         "lyrics": lyrics,
         "emotion_used": emotion,
-        "model": "LyricGen-v2-dummy",
+        "model": f"{LYRIC_GEN_MODEL_NAME}-dummy",
         "tokens_generated": len(lyrics.split()),
     }
 
 
-def predict_emotion_from_image(image_bytes: bytes) -> dict:
+def get_emotion_from_image(image_bytes: bytes) -> dict:
     """
-    Predict emotion from image
-    In production, replace with actual vision model (ResNet18 + FER2013)
-    For now, using dummy prediction
+    Wrapper function to get emotion from image
+    Calls the predict_emotion_from_image function from image_to_emotion module
+    
+    Args:
+        image_bytes: Raw image bytes
+        
+    Returns:
+        dict: Emotion detection result with emotion, confidence, scores, meta, and model info
     """
-    try:
-        # Open and validate image
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Convert to RGB if necessary
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Dummy prediction - in production, this would use a trained model
-        # Simulating ResNet18/FER2013 emotion detection
-        simulated_prediction = random.randint(0, 6)
-        detected_emotion = IMAGE_EMOTION_MAP[simulated_prediction]
-        
-        # Generate confidence scores
-        scores = {emotion: round(random.uniform(0.01, 0.15), 3) for emotion in EMOTIONS}
-        scores[detected_emotion] = round(random.uniform(0.4, 0.7), 3)
-        
-        # Normalize scores
-        total = sum(scores.values())
-        normalized = {e: round(v / total, 3) for e, v in scores.items()}
-        
-        confidence = normalized[detected_emotion]
-        
-        return {
-            "emotion": detected_emotion,
-            "confidence": confidence,
-            "scores": normalized,
-            "meta": EMOTION_META[detected_emotion],
-            "source": "image"
-        }
-        
-    except Exception as e:
-        # If image processing fails, return a default emotion
-        default_emotion = "joy"
-        return {
-            "emotion": default_emotion,
-            "confidence": 0.5,
-            "scores": {e: 0.125 for e in EMOTIONS},
-            "meta": EMOTION_META[default_emotion],
-            "source": "image",
-            "error": str(e)
-        }
+    result = predict_emotion_from_image(image_bytes)
+    return result

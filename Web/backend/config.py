@@ -13,6 +13,21 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = "lyricmind"
 
+# Email Configuration for OTP
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")  # Your email address
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")  # Your app password
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER)
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "LyricMind")
+
+# OTP Configuration
+OTP_EXPIRE_MINUTES = int(os.getenv("OTP_EXPIRE_MINUTES", "10"))  # OTP valid for 10 minutes
+OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6"))  # 6-digit OTP
+
+# Hugging Face Configuration
+HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")  # Optional: For faster inference and higher rate limits
+
 # CORS Configuration
 # Allow any origin in development. In production, set ALLOWED_ORIGINS env variable
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "dev")

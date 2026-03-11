@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAnalysis } from "../hooks/useAnalysis";
-import { useHistory } from "../hooks/useHistory";
 import { useAuth } from "../context/AuthContext";
+import apiService from "../services/api.service";
 import LyricsCard from "../components/lyrics/LyricsCard";
 import { MAX_TEXT_LENGTH } from "../utils/constants";
 import "../assets/styles/dashboard.css";
@@ -10,7 +10,10 @@ export default function Dashboard() {
   const [text, setText] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentChatId, setCurrentChatId] = useState(null);
-  const [chats, setChats] = useState({});
+  const [chats, setChats] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [selectedRequestIndex, setSelectedRequestIndex] = useState(null);
   const [inputMode, setInputMode] = useState("text"); // "text" or "image"
   const [selectedImage, setSelectedImage] = useState(null);
@@ -22,125 +25,145 @@ export default function Dashboard() {
 
   const { user, logout } = useAuth();
   const { analyze, analyzeImage, loading, result, error, reset } = useAnalysis();
-  const {
-    history,
-    loading: historyLoading,
-    fetchHistory,
-    deleteItem,
-  } = useHistory();
 
-  // Load chats from localStorage on mount
+  // Load chats from API on mount or when user changes
   useEffect(() => {
-    const savedChats = localStorage.getItem('lyricmind_chats');
-    const savedCurrentChatId = localStorage.getItem('lyricmind_current_chat');
+    if (!user?.id) return;
     
-    if (savedChats) {
-      const parsedChats = JSON.parse(savedChats);
-      setChats(parsedChats);
-      if (savedCurrentChatId && parsedChats[savedCurrentChatId]) {
-        setCurrentChatId(savedCurrentChatId);
-      } else {
-        // Create new chat if none exists
-        createNewChat();
-      }
-    } else {
-      // Create initial chat
-      createNewChat();
-    }
+    loadChats();
     
-    fetchHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user?.id]);
 
-  // Save chats to localStorage whenever they change
-  useEffect(() => {
-    if (Object.keys(chats).length > 0) {
-      localStorage.setItem('lyricmind_chats', JSON.stringify(chats));
+  const loadChats = async () => {
+    try {
+      setLoadingChats(true);
+      const data = await apiService.getChats();
+      setChats(data.chats || []);
+      
+      // If there are chats, select the first (most recent) one
+      if (data.chats && data.chats.length > 0) {
+        const firstChatId = data.chats[0].id;
+        setCurrentChatId(firstChatId);
+        await loadMessages(firstChatId);
+      } else {
+        // No chats - user will create one when they send first message
+        setCurrentChatId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error("Failed to load chats:", err);
+    } finally {
+      setLoadingChats(false);
     }
-  }, [chats]);
-
-  // Save current chat ID whenever it changes
-  useEffect(() => {
-    if (currentChatId) {
-      localStorage.setItem('lyricmind_current_chat', currentChatId);
-    }
-  }, [currentChatId]);
-
-  // Create a new chat session
-  const createNewChat = () => {
-    const newChatId = `chat_${Date.now()}`;
-    const newChat = {
-      id: newChatId,
-      title: "New Chat",
-      messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    setChats(prev => ({
-      ...prev,
-      [newChatId]: newChat
-    }));
-    setCurrentChatId(newChatId);
-    reset();
-    setText("");
-    setInputMode("text");
-    handleRemoveImage();
-    fetchHistory();
   };
 
-  // Get current chat messages
-  const currentMessages = currentChatId && chats[currentChatId] ? chats[currentChatId].messages : [];
+  // Load messages for a specific chat
+  const loadMessages = async (chatId) => {
+    try {
+      setLoadingMessages(true);
+      const data = await apiService.getMessages(chatId);
+      setMessages(data.messages || []);
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  // Create a new chat session
+  const createNewChat = async () => {
+    try {
+      const newChat = await apiService.createChat("New Chat");
+      setChats(prev => [newChat, ...prev]);
+      setCurrentChatId(newChat.id);
+      setMessages([]);
+      reset();
+      setText("");
+      setInputMode("text");
+      handleRemoveImage();
+      setSelectedRequestIndex(null);
+      return newChat;
+    } catch (err) {
+      console.error("Failed to create new chat:", err);
+    }
+  };
+
+  // Get current chat  
+  const currentChat = chats.find(chat => chat.id === currentChatId);
+  const currentMessages = messages;
 
   // Handle analysis result
   useEffect(() => {
-    if (result && currentChatId) {
-      const userMessage = {
-        id: `msg_${Date.now()}`,
-        type: 'user',
-        content: result.input_text || `[Image: ${result.input_filename || 'uploaded'}]`,
-        inputType: result.input_type || 'text',
-        imagePreview: result.input_type === 'image' ? imagePreview : null,
-        timestamp: new Date().toISOString()
-      };
-      
-      const assistantMessage = {
-        id: `msg_${Date.now() + 1}`,
-        type: 'assistant',
-        emotion: result.emotion_detection,
-        lyrics: result.lyric_generation.lyrics,
-        timestamp: new Date().toISOString()
-      };
-
-      setChats(prev => {
-        const currentChat = prev[currentChatId];
-        const newMessages = [...currentChat.messages, userMessage, assistantMessage];
-        
-        // Update chat title with first user message if it's still "New Chat"
-        const displayContent = userMessage.inputType === 'image' ? userMessage.content : userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? "..." : "");
-        const newTitle = currentChat.title === "New Chat" && newMessages.length >= 2
-          ? displayContent
-          : currentChat.title;
-
-        return {
-          ...prev,
-          [currentChatId]: {
-            ...currentChat,
-            messages: newMessages,
-            title: newTitle,
-            updatedAt: new Date().toISOString()
+    if (result) {
+      const saveMessages = async () => {
+        try {
+          // Create a chat if none exists
+          let chatId = currentChatId;
+          if (!chatId) {
+            const newChat = await apiService.createChat("New Chat");
+            setChats(prev => [newChat, ...prev]);
+            setCurrentChatId(newChat.id);
+            chatId = newChat.id;
           }
-        };
-      });
+          
+          // Create user message
+          const userMessageData = {
+            content: result.input_text || `[Image: ${result.input_filename || 'uploaded'}]`,
+            message_type: 'user',
+          };
+          
+          // Add optional fields only if they have values
+          if (result.input_type) {
+            userMessageData.input_type = result.input_type;
+          }
+          if (result.input_type === 'image' && imagePreview) {
+            userMessageData.image_preview = imagePreview;
+          }
+          
+          const userMessage = await apiService.createMessage(chatId, userMessageData);
+          
+          // Create assistant message
+          const assistantMessageData = {
+            content: result.lyric_generation.lyrics,
+            message_type: 'assistant',
+            emotion: result.emotion_detection,
+            lyrics: result.lyric_generation.lyrics
+          };
+          
+          const assistantMessage = await apiService.createMessage(chatId, assistantMessageData);
+          
+          // Update local messages state
+          setMessages(prev => [...prev, userMessage, assistantMessage]);
+          
+          // Update chat title with first user message
+          const chat = chats.find(c => c.id === chatId);
+          if (!chat || chat.title === "New Chat") {
+            const displayContent = userMessageData.input_type === 'image' 
+              ? userMessageData.content 
+              : userMessageData.content.slice(0, 50) + (userMessageData.content.length > 50 ? "..." : "");
+            
+            await apiService.updateChat(chatId, { title: displayContent });
+            setChats(prev => prev.map(chat => 
+              chat.id === chatId ? { ...chat, title: displayContent } : chat
+            ));
+          }
+          
+          // Auto-select the latest request
+          const assistantMessages = [...messages, userMessage, assistantMessage].filter(m => m.message_type === 'assistant');
+          setSelectedRequestIndex(assistantMessages.length - 1);
+          
+          setText("");
+          handleRemoveImage();
+        } catch (err) {
+          console.error("Failed to save messages:", err);
+        }
+      };
       
-      // Auto-select the latest request (newest assistant message)
-      const assistantMessages = [...currentMessages.filter(m => m.type === 'assistant'), assistantMessage];
-      setSelectedRequestIndex(assistantMessages.length - 1);
-      
-      setText("");
-      handleRemoveImage();
+      saveMessages();
     }
-  }, [result, currentChatId]);
+  }, [result]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -149,7 +172,7 @@ export default function Dashboard() {
 
   // Auto-select latest request when chat changes or messages load
   useEffect(() => {
-    const assistantMessages = currentMessages.filter(msg => msg.type === 'assistant');
+    const assistantMessages = currentMessages.filter(msg => msg.message_type === 'assistant');
     if (assistantMessages.length > 0 && selectedRequestIndex === null) {
       setSelectedRequestIndex(assistantMessages.length - 1);
     }
@@ -208,12 +231,19 @@ export default function Dashboard() {
   };
 
   const handleNewChat = () => {
+    // If current chat is already empty "New Chat", don't create another
+    if (currentChat && currentChat.title === "New Chat" && messages.length === 0) {
+      return; // Already on an empty new chat
+    }
+    
+    // Create a new chat
     createNewChat();
   };
 
   // Switch to a different chat
-  const handleChatSelect = (chatId) => {
+  const handleChatSelect = async (chatId) => {
     setCurrentChatId(chatId);
+    await loadMessages(chatId);
     reset();
     setText("");
     setInputMode("text");
@@ -222,26 +252,31 @@ export default function Dashboard() {
   };
 
   // Delete a chat
-  const handleDeleteChat = (chatId) => {
-    setChats(prev => {
-      const newChats = { ...prev };
-      delete newChats[chatId];
-      return newChats;
-    });
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await apiService.deleteChat(chatId);
+      
+      // Remove from local state
+      setChats(prev => prev.filter(c => c.id !== chatId));
 
-    // If deleting current chat, switch to another or create new
-    if (chatId === currentChatId) {
-      const remainingChats = Object.keys(chats).filter(id => id !== chatId);
-      if (remainingChats.length > 0) {
-        setCurrentChatId(remainingChats[0]);
-      } else {
-        createNewChat();
+      // If deleting current chat, switch to another or create new
+      if (chatId === currentChatId) {
+        const remainingChats = chats.filter(c => c.id !== chatId);
+        if (remainingChats.length > 0) {
+          const nextChatId = remainingChats[0].id;
+          setCurrentChatId(nextChatId);
+          await loadMessages(nextChatId);
+        } else {
+          await createNewChat();
+        }
       }
+    } catch (err) {
+      console.error('Error deleting chat:', err);
     }
   };
 
   // Get sorted chat list (most recent first)
-  const chatList = Object.values(chats).sort((a, b) => 
+  const chatList = [...chats].sort((a, b) => 
     new Date(b.updatedAt) - new Date(a.updatedAt)
   );
 
@@ -281,7 +316,7 @@ export default function Dashboard() {
   ];
 
   // Get requests (assistant messages with lyrics) from current chat
-  const requests = currentMessages.filter(msg => msg.type === 'assistant');
+  const requests = currentMessages.filter(msg => msg.message_type === 'assistant');
   
   // Get selected request data
   const selectedRequest = selectedRequestIndex !== null && requests[selectedRequestIndex] 
@@ -292,7 +327,7 @@ export default function Dashboard() {
   const getUserRequestNumber = (userMsgIndex) => {
     // Find the next assistant message after this user message
     for (let i = userMsgIndex + 1; i < currentMessages.length; i++) {
-      if (currentMessages[i].type === 'assistant') {
+      if (currentMessages[i].message_type === 'assistant') {
         const assistantIndex = requests.findIndex(req => req.id === currentMessages[i].id);
         return assistantIndex !== -1 ? assistantIndex + 1 : null;
       }
@@ -309,7 +344,7 @@ export default function Dashboard() {
         const assistantIdx = currentMessages.findIndex(msg => msg.id === assistantMsg.id);
         // Look backwards for the user message
         for (let i = assistantIdx - 1; i >= 0; i--) {
-          if (currentMessages[i].type === 'user') {
+          if (currentMessages[i].message_type === 'user') {
             const element = requestRefs.current[currentMessages[i].id];
             if (element) {
               element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -423,35 +458,57 @@ export default function Dashboard() {
             ) : (
               <>
                 {currentMessages.map((msg, index) => {
-                  const requestNum = msg.type === 'user' ? getUserRequestNumber(index) : null;
+                  const requestNum = msg.message_type === 'user' ? getUserRequestNumber(index) : null;
                   
                   return (
                     <div 
                       key={msg.id} 
-                      className={`message ${msg.type}`}
+                      className={`message ${msg.message_type}`}
                       ref={(el) => requestRefs.current[msg.id] = el}
                     >
                       <div className="message-avatar">
-                        {msg.type === 'user' ? (
+                        {msg.message_type === 'user' ? (
                           <span>{requestNum || user?.name?.charAt(0).toUpperCase() || "U"}</span>
                         ) : (
                           <span>𝄞</span>
                         )}
                       </div>
                       <div className="message-content">
-                        {msg.type === 'user' && msg.inputType === 'image' && msg.imagePreview ? (
+                        {msg.message_type === 'user' && msg.input_type === 'image' && msg.image_preview ? (
                           <div className="message-image">
-                            <img src={msg.imagePreview} alt="Uploaded" />
+                            <img src={msg.image_preview} alt="Uploaded" />
                           </div>
                         ) : (
                           <p className="message-text">
-                            {msg.type === 'user' ? msg.content : 'Lyrics generated successfully ✓'}
+                            {msg.message_type === 'user' ? msg.content : 'Lyrics generated successfully ✓'}
                           </p>
                         )}
                       </div>
                     </div>
                   );
                 })}
+                
+                {/* Loading indicator */}
+                {loading && (
+                  <div className="message assistant">
+                    <div className="message-avatar">
+                      <span>𝄞</span>
+                    </div>
+                    <div className="message-content">
+                      <div className="loading-message">
+                        <div className="loading-dots">
+                          <span className="dot"></span>
+                          <span className="dot"></span>
+                          <span className="dot"></span>
+                        </div>
+                        <span className="loading-text">
+                          {inputMode === 'image' ? 'Analyzing image...' : 'Analyzing text...'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div ref={messagesEndRef} />
               </>
             )}

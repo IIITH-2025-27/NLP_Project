@@ -21,9 +21,24 @@ export const useAnalysis = () => {
     setResult(null);
 
     try {
-      const data = await apiService.analyze(text);
-      setResult(data);
-      return data;
+      // Step 1: Get emotion from text
+      const emotionData = await apiService.getEmotionFromText(text);
+      
+      // Step 2: Get lyrics for the detected emotion
+      const lyricsData = await apiService.getLyricsForEmotion(
+        emotionData.emotion_detection.emotion
+      );
+      
+      // Combine the results in the format expected by the frontend
+      const combinedResult = {
+        input_text: emotionData.input_text,
+        input_type: emotionData.input_type,
+        emotion_detection: emotionData.emotion_detection,
+        lyric_generation: lyricsData.lyric_generation,
+      };
+      
+      setResult(combinedResult);
+      return combinedResult;
     } catch (err) {
       setError(err.message || "Failed to analyze text");
       throw err;
@@ -43,9 +58,24 @@ export const useAnalysis = () => {
     setResult(null);
 
     try {
-      const data = await apiService.analyzeImage(imageFile);
-      setResult(data);
-      return data;
+      // Step 1: Get emotion from image
+      const emotionData = await apiService.getEmotionFromImage(imageFile);
+      
+      // Step 2: Get lyrics for the detected emotion
+      const lyricsData = await apiService.getLyricsForEmotion(
+        emotionData.emotion_detection.emotion
+      );
+      
+      // Combine the results in the format expected by the frontend
+      const combinedResult = {
+        input_type: emotionData.input_type,
+        input_filename: emotionData.input_filename,
+        emotion_detection: emotionData.emotion_detection,
+        lyric_generation: lyricsData.lyric_generation,
+      };
+      
+      setResult(combinedResult);
+      return combinedResult;
     } catch (err) {
       setError(err.message || "Failed to analyze image");
       throw err;

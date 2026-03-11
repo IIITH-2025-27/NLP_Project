@@ -30,7 +30,7 @@ Models/Notebooks/venv/
 Models/Notebooks/OTHER_THINGS/
 
 # Web Application
-# Web/backend/.env
+Web/backend/.env
 # Web/frontend/.env
 Web/frontend/.env.local
 Web/frontend/.env.production
