@@ -14,8 +14,17 @@ export const api = {
     req("/auth/signup", { method: "POST", body: JSON.stringify({ name, email, password }) }),
   login: (email, password) =>
     req("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  
+  // New ML endpoints
+  getEmotionFromText: (text, token) =>
+    req("/getEmotionFromText", { method: "POST", body: JSON.stringify({ text }) }, token),
+  getLyricsForEmotion: (emotion, token) =>
+    req("/getLyricsForEmotion", { method: "POST", body: JSON.stringify({ emotion }) }, token),
+  
+  // Legacy analyze endpoint
   analyze: (text, token) =>
-    req("/analyze", { method: "POST", body: JSON.stringify({ text }) }, token),
+    req("/getEmotionFromText", { method: "POST", body: JSON.stringify({ text }) }, token),
+    
   getHistory: (token) => req("/history", {}, token),
   deleteHistory: (id, token) => req(`/history/${id}`, { method: "DELETE" }, token),
 };

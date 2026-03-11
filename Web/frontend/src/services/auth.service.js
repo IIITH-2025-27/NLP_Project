@@ -6,7 +6,33 @@ import storageService from "./storage.service";
  */
 class AuthService {
   /**
-   * Sign up new user
+   * Request OTP for signup
+   */
+  async requestOTP(name, email, password) {
+    return await apiService.requestOTP(name, email, password);
+  }
+
+  /**
+   * Verify OTP and complete signup
+   */
+  async verifyOTP(email, otp) {
+    const response = await apiService.verifyOTP(email, otp);
+    if (response.token && response.user) {
+      storageService.setToken(response.token);
+      storageService.setUser(response.user);
+    }
+    return response;
+  }
+
+  /**
+   * Resend OTP
+   */
+  async resendOTP(email) {
+    return await apiService.resendOTP(email);
+  }
+
+  /**
+   * Sign up new user (legacy - without OTP)
    */
   async signup(name, email, password) {
     const response = await apiService.signup(name, email, password);

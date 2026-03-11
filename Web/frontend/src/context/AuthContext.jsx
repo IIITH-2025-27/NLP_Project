@@ -9,11 +9,16 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("lyricmind_user");
-    if (saved && token) setUser(JSON.parse(saved));
+    const savedToken = localStorage.getItem("lyricmind_token");
+    if (saved && savedToken) {
+      const userData = JSON.parse(saved);
+      setUser(userData);
+      setToken(savedToken);
+    }
     setLoading(false);
   }, []);
 
-  const login = (userData, authToken) => {
+  const login =(userData, authToken) => {
     setUser(userData);
     setToken(authToken);
     localStorage.setItem("lyricmind_token", authToken);
@@ -25,6 +30,7 @@ export function AuthProvider({ children }) {
     setToken(null);
     localStorage.removeItem("lyricmind_token");
     localStorage.removeItem("lyricmind_user");
+    window.location.reload(); // Reload to clear all state
   };
 
   return (
