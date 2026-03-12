@@ -56,11 +56,36 @@ async def get_emotion_from_image_endpoint(
     
     try:
         emotion_result = predict_emotion_from_image(contents)
+        
+        # Check if result contains an error (e.g., no face detected)
+        if "error" in emotion_result and "error_type" in emotion_result:
+            if emotion_result["error_type"] == "NoFaceDetected":
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": emotion_result["error"],
+                        "error_type": "NoFaceDetected",
+                        "suggestion": emotion_result.get("suggestion", "Please upload an image with a visible face.")
+                    }
+                )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": emotion_result["error"],
+                        "error_type": emotion_result.get("error_type", "ValidationError")
+                    }
+                )
+        
         return {
             "input_type": "image",
             "input_filename": image.filename,
             "emotion_detection": emotion_result,
         }
+    
+    except HTTPException:
+        # Re-raise HTTPException as-is
+        raise
     
     except Exception as e:
         error_message = str(e)

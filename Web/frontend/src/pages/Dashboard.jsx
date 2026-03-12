@@ -18,9 +18,15 @@ export default function Dashboard() {
   const [inputMode, setInputMode] = useState("text"); // "text" or "image"
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [cameraModalOpen, setCameraModalOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [preprocessedModalOpen, setPreprocessedModalOpen] = useState(false);
+  const [preprocessedImageToShow, setPreprocessedImageToShow] = useState(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const requestRefs = useRef({});
 
   const { user, logout } = useAuth();
@@ -121,6 +127,10 @@ export default function Dashboard() {
           if (result.input_type === 'image' && imagePreview) {
             userMessageData.image_preview = imagePreview;
           }
+          // Store preprocessed image in user message for later viewing
+          if (result.emotion_detection.preprocessed_image) {
+            userMessageData.preprocessed_image = result.emotion_detection.preprocessed_image;
+          }
           
           const userMessage = await apiService.createMessage(chatId, userMessageData);
           
@@ -131,6 +141,11 @@ export default function Dashboard() {
             emotion: result.emotion_detection,
             lyrics: result.lyric_generation.lyrics
           };
+          
+          // Add preprocessed image if available
+          if (result.emotion_detection.preprocessed_image) {
+            assistantMessageData.preprocessed_image = result.emotion_detection.preprocessed_image;
+          }
           
           const assistantMessage = await apiService.createMessage(chatId, assistantMessageData);
           
@@ -221,6 +236,75 @@ export default function Dashboard() {
       fileInputRef.current.value = "";
     }
   };
+
+  // Camera functions
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment" },
+        audio: false 
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      alert("Unable to access camera. Please check permissions.");
+      setCameraModalOpen(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const handleCameraOpen = () => {
+    setCameraModalOpen(true);
+  };
+
+  const handleCameraCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
+          setSelectedImage(file);
+          setImagePreview(canvas.toDataURL('image/jpeg'));
+          handleCameraClose();
+        }
+      }, 'image/jpeg', 0.95);
+    }
+  };
+
+  const handleCameraClose = () => {
+    stopCamera();
+    setCameraModalOpen(false);
+  };
+
+  // Start camera when modal opens
+  useEffect(() => {
+    if (cameraModalOpen) {
+      startCamera();
+    }
+    return () => {
+      if (cameraModalOpen) {
+        stopCamera();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraModalOpen]);
 
   const handleModeSwitch = (mode) => {
     if (mode !== inputMode) {
@@ -477,6 +561,21 @@ export default function Dashboard() {
                         {msg.message_type === 'user' && msg.input_type === 'image' && msg.image_preview ? (
                           <div className="message-image">
                             <img src={msg.image_preview} alt="Uploaded" />
+                            {msg.preprocessed_image && (
+                              <button 
+                                className="preprocessed-view-btn"
+                                onClick={() => {
+                                  setPreprocessedImageToShow(msg.preprocessed_image);
+                                  setPreprocessedModalOpen(true);
+                                }}
+                                title="View preprocessed image (224×224 face)"
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                  <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <p className="message-text">
@@ -586,17 +685,30 @@ export default function Dashboard() {
                       style={{ display: "none" }}
                       disabled={loading}
                     />
-                    <button
-                      className="upload-button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={loading}
-                    >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                      </svg>
-                      <span>Click to upload image</span>
-                      <span className="upload-hint">Max 10MB • JPG, PNG, GIF</span>
-                    </button>
+                    <div className="upload-buttons-group">
+                      <button
+                        className="upload-button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={loading}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <span>Browse Files</span>
+                      </button>
+                      <button
+                        className="upload-button camera-button"
+                        onClick={handleCameraOpen}
+                        disabled={loading}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                          <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        <span>Take Photo</span>
+                      </button>
+                    </div>
+                    <span className="upload-hint">Max 10MB • JPG, PNG, GIF</span>
                   </div>
                 ) : (
                   <div className="image-preview-container">
@@ -687,6 +799,72 @@ export default function Dashboard() {
           </div>
         </aside>
       </div>
+
+      {/* Camera Modal */}
+      {cameraModalOpen && (
+        <div className="camera-modal-overlay" onClick={handleCameraClose}>
+          <div className="camera-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="camera-modal-header">
+              <h3>Take Photo</h3>
+              <button className="camera-close-btn" onClick={handleCameraClose}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="camera-modal-body">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline
+                className="camera-video"
+              />
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+            </div>
+            <div className="camera-modal-footer">
+              <button className="camera-cancel-btn" onClick={handleCameraClose}>
+                Cancel
+              </button>
+              <button className="camera-capture-btn" onClick={handleCameraCapture}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="10"/>
+                </svg>
+                Capture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preprocessed Image Modal */}
+      {preprocessedModalOpen && preprocessedImageToShow && (
+        <div className="preprocessed-modal-overlay" onClick={() => setPreprocessedModalOpen(false)}>
+          <div className="preprocessed-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="preprocessed-modal-header">
+              <h3>Detected Face (224×224)</h3>
+              <button className="preprocessed-close-btn" onClick={() => setPreprocessedModalOpen(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="preprocessed-modal-body">
+              <div className="preprocessed-display">
+                <img src={preprocessedImageToShow} alt="Preprocessed face" />
+              </div>
+              <p className="preprocessed-modal-note">
+                This is the 224×224 face image that was analyzed by the emotion detection model.
+                The face was automatically detected, cropped, and resized to match the model's training data.
+              </p>
+            </div>
+            <div className="preprocessed-modal-footer">
+              <button className="preprocessed-ok-btn" onClick={() => setPreprocessedModalOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

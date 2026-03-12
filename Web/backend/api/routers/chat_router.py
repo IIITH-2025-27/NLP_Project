@@ -161,6 +161,8 @@ def create_message(chat_id: str, body: CreateMessageRequest, current_user=Depend
         message["emotion"] = body.emotion
     if body.lyrics:
         message["lyrics"] = body.lyrics
+    if body.preprocessed_image:
+        message["preprocessed_image"] = body.preprocessed_image
     
     result = messages_col.insert_one(message)
     message["_id"] = str(result.inserted_id)
