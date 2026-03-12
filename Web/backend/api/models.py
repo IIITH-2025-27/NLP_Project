@@ -75,6 +75,48 @@ class ResendOTPRequest(BaseModel):
     email: EmailStr
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetOTPRequest(BaseModel):
+    email: EmailStr
+    otp: str
+    
+    @field_validator('otp')
+    @classmethod
+    def validate_otp(cls, v):
+        if not v.isdigit():
+            raise ValueError('OTP must contain only digits')
+        if len(v) != 6:
+            raise ValueError('OTP must be 6 digits')
+        return v
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+    
+    @field_validator('otp')
+    @classmethod
+    def validate_otp(cls, v):
+        if not v.isdigit():
+            raise ValueError('OTP must contain only digits')
+        if len(v) != 6:
+            raise ValueError('OTP must be 6 digits')
+        return v
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters')
+        if len(v) > 72:
+            raise ValueError('Password cannot exceed 72 characters')
+        return v
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -119,3 +161,4 @@ class CreateMessageRequest(BaseModel):
     image_preview: Optional[str] = None  # Base64 image preview URL
     emotion: Optional[dict] = None  # For assistant messages
     lyrics: Optional[str] = None  # For assistant messages
+    preprocessed_image: Optional[str] = None  # Base64 preprocessed image for face detection

@@ -93,8 +93,8 @@ def store_otp(email: str, otp: str, name: str, password_hash: str):
     })
 
 
-def verify_otp(email: str, otp: str) -> dict:
-    """Verify OTP and return stored user data if valid"""
+def verify_otp(email: str, otp: str, delete_after: bool = True) -> dict:
+    """Verify OTP and return stored data if valid"""
     otp_record = otp_col.find_one({"email": email})
     
     if not otp_record:
@@ -123,13 +123,27 @@ def verify_otp(email: str, otp: str) -> dict:
             detail=f"Invalid OTP. {remaining_attempts} attempts remaining."
         )
     
-    # OTP is valid - return user data and delete OTP record
-    user_data = {
-        "name": otp_record["name"],
-        "email": otp_record["email"],
-        "password_hash": otp_record["password_hash"]
-    }
+    # OTP is valid - prepare return data based on purpose
+    purpose = otp_record.get("purpose", "signup")
     
-    otp_col.delete_one({"_id": otp_record["_id"]})
+    if purpose == "password_reset":
+        # Password reset OTP
+        result_data = {
+            "email": otp_record["email"],
+            "name": otp_record["name"],
+            "purpose": "password_reset"
+        }
+    else:
+        # Signup OTP
+        result_data = {
+            "name": otp_record["name"],
+            "email": otp_record["email"],
+            "password_hash": otp_record["password_hash"],
+            "purpose": "signup"
+        }
     
-    return user_data
+    # Delete OTP record if requested (default True)
+    if delete_after:
+        otp_col.delete_one({"_id": otp_record["_id"]})
+    
+    return result_data

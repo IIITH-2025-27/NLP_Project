@@ -39,14 +39,23 @@ async def send_email(to_email: str, subject: str, body: str, html_body: str = No
         raise Exception(f"Failed to send email: {str(e)}")
 
 
-async def send_otp_email(to_email: str, otp: str, name: str):
+async def send_otp_email(to_email: str, otp: str, name: str, is_password_reset: bool = False):
     """Send OTP verification email"""
-    subject = "Verify Your Email - LyricMind"
+    if is_password_reset:
+        subject = "Reset Your Password - LyricMind"
+        greeting = "Password Reset Request"
+        message = "We received a request to reset your password."
+        instruction = "Enter this code to reset your password"
+    else:
+        subject = "Verify Your Email - LyricMind"
+        greeting = "Welcome to LyricMind! 🎵"
+        message = "We're excited to have you on board."
+        instruction = "Enter this code to complete your registration"
     
     # Plain text version
     body = f"""Hello {name},
 
-Welcome to LyricMind! 🎵
+{message}
 
 Your verification code is: {otp}
 
@@ -128,12 +137,12 @@ The LyricMind Team
         
         <p>Hello <strong>{name}</strong>,</p>
         
-        <p>Welcome to LyricMind! 🎵 We're excited to have you on board.</p>
+        <p>{message}</p>
         
         <div class="otp-box">
             <p style="margin: 0; font-size: 14px; color: #666;">Your verification code is:</p>
             <div class="otp-code">{otp}</div>
-            <p style="margin: 0; font-size: 12px; color: #999;">Enter this code to complete your registration</p>
+            <p style="margin: 0; font-size: 12px; color: #999;">{instruction}</p>
         </div>
         
         <div class="message">

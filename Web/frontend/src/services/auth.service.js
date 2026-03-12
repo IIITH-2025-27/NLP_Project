@@ -32,6 +32,32 @@ class AuthService {
   }
 
   /**
+   * Request password reset OTP
+   */
+  async forgotPassword(email) {
+    return await apiService.forgotPassword(email);
+  }
+
+  /**
+   * Verify reset OTP
+   */
+  async verifyResetOTP(email, otp) {
+    return await apiService.verifyResetOTP(email, otp);
+  }
+
+  /**
+   * Reset password with OTP
+   */
+  async resetPassword(email, otp, newPassword) {
+    const response = await apiService.resetPassword(email, otp, newPassword);
+    if (response.token && response.user) {
+      storageService.setToken(response.token);
+      storageService.setUser(response.user);
+    }
+    return response;
+  }
+
+  /**
    * Sign up new user (legacy - without OTP)
    */
   async signup(name, email, password) {

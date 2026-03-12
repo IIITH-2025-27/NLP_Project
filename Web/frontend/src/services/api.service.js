@@ -2,6 +2,20 @@ import { API_BASE_URL } from "../utils/constants";
 import storageService from "./storage.service";
 
 /**
+ * Extract error message from error detail (handles both string and object)
+ */
+const extractErrorMessage = (detail) => {
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (typeof detail === 'object' && detail !== null) {
+    // Try different error message fields
+    return detail.error || detail.message || detail.detail || JSON.stringify(detail);
+  }
+  return 'Request failed';
+};
+
+/**
  * Base HTTP request handler
  */
 const request = async (endpoint, options = {}) => {
@@ -26,7 +40,8 @@ const request = async (endpoint, options = {}) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || "Request failed");
+      const errorMessage = extractErrorMessage(data.detail);
+      throw new Error(errorMessage);
     }
 
     return data;
@@ -63,6 +78,24 @@ const apiService = {
     request("/auth/resend-otp", {
       method: "POST",
       body: JSON.stringify({ email }),
+    }),
+
+  forgotPassword: (email) =>
+    request("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyResetOTP: (email, otp) =>
+    request("/auth/verify-reset-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+
+  resetPassword: (email, otp, new_password) =>
+    request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, new_password }),
     }),
 
   login: (email, password) =>
@@ -103,7 +136,8 @@ const apiService = {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Request failed");
+        const errorMessage = extractErrorMessage(data.detail);
+        throw new Error(errorMessage);
       }
 
       return data;

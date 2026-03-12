@@ -30,6 +30,8 @@ except ImportError:
     GRADIO_AVAILABLE = False
     print("Warning: gradio_client not installed. Image emotion detection will use fallback.")
 
+# Import image preprocessing
+from .image_processing import preprocess_and_get_base64
 
 # Global client instance (lazy loaded)
 _gradio_client = None
@@ -78,17 +80,10 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
         dict: Contains emotion, confidence, scores, meta, source, and model info
     """
     try:
-        # Open and validate image
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Convert to RGB if necessary
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Save image to temporary file for Gradio client
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
-            image.save(tmp_file.name, format='PNG')
-            tmp_path = tmp_file.name
+        # Preprocess image: detect face, crop, and resize to 224x224
+        # This ensures the image matches the model's training data format
+        # Returns both the file path (for API) and base64 (for UI display)
+        tmp_path, preprocessed_base64 = preprocess_and_get_base64(image_bytes)
         
         try:
             # Get Gradio client
@@ -152,7 +147,8 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
                 "scores": normalized,
                 "meta": EMOTION_META.get(detected_emotion, {}),
                 "source": "image",
-                "model": GRADIO_IMAGE_EMOTION_SPACE
+                "model": GRADIO_IMAGE_EMOTION_SPACE,
+                "preprocessed_image": preprocessed_base64
             }
             
         finally:
@@ -160,6 +156,24 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
         
+    except ValueError as e:
+        # Handle face detection errors specifically
+        error_str = str(e)
+        if "No face detected" in error_str:
+            return {
+                "error": error_str,
+                "error_type": "NoFaceDetected",
+                "source": "image",
+                "suggestion": "Please upload an image with a clear, visible human face. Ensure the face is well-lit and not obscured."
+            }
+        else:
+            # Other ValueError
+            return {
+                "error": f"Image validation error: {error_str}",
+                "error_type": "ValidationError",
+                "source": "image"
+            }
+    
     except Exception as e:
         # If image processing or API call fails, return a default emotion with detailed error
         default_emotion = "Neutral"
