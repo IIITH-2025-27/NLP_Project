@@ -14,16 +14,23 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Face detector
 mtcnn = MTCNN(keep_all=False, device=device)
 
-# Transform for ResNet
-transform = transforms.Compose([
-    transforms.Resize((224,224)),
-    transforms.ToTensor()
+# Transform for ResNet - MUST match training pipeline exactly
+# Training used: Resize -> Grayscale -> ToTensor -> Normalize
+inference_transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.Grayscale(num_output_channels=3),  # CRITICAL: Convert to 3-channel grayscale like training
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],  # ImageNet normalization
+        std=[0.229, 0.224, 0.225]
+    )
 ])
 
 def preprocess_image(image_input):
     """
     Preprocess image for emotion detection model.
     Detects face, crops, and resizes to 224x224.
+    CRITICAL: Applies grayscale conversion to match training pipeline.
     
     Args:
         image_input: Can be either:
@@ -51,18 +58,26 @@ def preprocess_image(image_input):
         # Raise error if no face detected
         raise ValueError("No face detected in the image. Please provide an image with a clear, visible face.")
     
-    # face is already a tensor from MTCNN, just need to ensure it's in right format
-    # Ensure batch dimension
-    if face.dim() == 3:
-        face = face.unsqueeze(0)
+    # Convert MTCNN tensor output back to PIL Image for proper transforms
+    # MTCNN returns tensor in range [0, 1] with shape (3, H, W)
+    face_np = face.permute(1, 2, 0).cpu().numpy()
+    face_np = (face_np * 255).astype(np.uint8)
+    face_pil = Image.fromarray(face_np)
+    
+    # Apply the inference transform (grayscale + normalization to match training)
+    face_tensor = inference_transform(face_pil)
+    
+    # Add batch dimension
+    face_tensor = face_tensor.unsqueeze(0)
 
-    return face
+    return face_tensor
 
 
 def preprocess_and_save_image(image_input, output_path=None):
     """
     Preprocess image and save it to disk for use with external APIs.
     Returns path to the saved preprocessed image.
+    NOTE: Saves the **denormalized** version for API consumption
     
     Args:
         image_input: Can be bytes, path, or PIL Image
@@ -72,18 +87,26 @@ def preprocess_and_save_image(image_input, output_path=None):
     Returns:
         str: Path to the saved preprocessed image
     """
-    # Get preprocessed face tensor
+    # Get preprocessed face tensor from inference_transform (already normalized)
     face_tensor = preprocess_image(image_input)
     
-    # Convert tensor back to PIL Image (denormalize and convert to uint8)
-    # face_tensor shape: (1, 3, 224, 224)
-    face_np = face_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+    # Denormalize for saving/API (reverse ImageNet normalization)
+    # face_tensor shape: (1, 3, 224, 224), already normalized
+    face = face_tensor.squeeze(0)  # (3, 224, 224)
     
-    # Denormalize if needed (scale back to 0-255)
+    # Reverse normalization
+    denorm_means = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    denorm_stds = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+    face = (face * denorm_stds + denorm_means)
+    
+    # Convert to numpy and PIL
+    face_np = face.permute(1, 2, 0).cpu().numpy()
+    
+    # Scale to 0-255
     if face_np.max() <= 1.0:
         face_np = (face_np * 255).astype(np.uint8)
     else:
-        face_np = face_np.astype(np.uint8)
+        face_np = np.clip(face_np, 0, 255).astype(np.uint8)
     
     # Convert to PIL Image
     face_img = Image.fromarray(face_np)
@@ -102,6 +125,7 @@ def preprocess_and_save_image(image_input, output_path=None):
 def preprocess_and_get_base64(image_input):
     """
     Preprocess image and return it as base64 string for displaying in UI.
+    NOTE: Returns the **denormalized** version for proper display
     
     Args:
         image_input: Can be bytes, path, or PIL Image
@@ -109,18 +133,26 @@ def preprocess_and_get_base64(image_input):
     Returns:
         tuple: (preprocessed_image_path, base64_string)
     """
-    # Get preprocessed face tensor
+    # Get preprocessed face tensor from inference_transform (already normalized)
     face_tensor = preprocess_image(image_input)
     
-    # Convert tensor back to PIL Image (denormalize and convert to uint8)
-    # face_tensor shape: (1, 3, 224, 224)
-    face_np = face_tensor.squeeze(0).permute(1, 2, 0).cpu().numpy()
+    # Denormalize for display/API (reverse ImageNet normalization)
+    # face_tensor shape: (1, 3, 224, 224), already normalized
+    face = face_tensor.squeeze(0)  # (3, 224, 224)
     
-    # Denormalize if needed (scale back to 0-255)
+    # Reverse normalization
+    denorm_means = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    denorm_stds = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+    face = (face * denorm_stds + denorm_means)
+    
+    # Convert to numpy
+    face_np = face.permute(1, 2, 0).cpu().numpy()
+    
+    # Scale to 0-255
     if face_np.max() <= 1.0:
         face_np = (face_np * 255).astype(np.uint8)
     else:
-        face_np = face_np.astype(np.uint8)
+        face_np = np.clip(face_np, 0, 255).astype(np.uint8)
     
     # Convert to PIL Image
     face_img = Image.fromarray(face_np)
