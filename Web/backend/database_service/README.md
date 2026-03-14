@@ -25,6 +25,8 @@ Database collections (tables) and index management:
 - **otp_col** - OTP verification codes
 - **chats_col** - Chat sessions
 - **messages_col** - Chat messages
+- **image_emotion_data_col** - Image + preprocessed image + detected emotion records
+- **emotion_lyrics_data_col** - Emotion + generated lyrics records
 - **create_indexes()** - Creates all necessary indexes for performance
 
 ### 3. `__init__.py`
@@ -35,7 +37,14 @@ Package initialization that exports all collections and connection objects
 ### Import collections
 
 ```python
-from database_service import users_col, otp_col, chats_col, messages_col
+from database_service import (
+    users_col,
+    otp_col,
+    chats_col,
+    messages_col,
+    image_emotion_data_col,
+    emotion_lyrics_data_col,
+)
 
 # Use collections
 user = users_col.find_one({"email": "user@example.com"})

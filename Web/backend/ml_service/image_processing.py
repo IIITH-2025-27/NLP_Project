@@ -12,7 +12,9 @@ import base64
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Face detector
-mtcnn = MTCNN(keep_all=False, device=device)
+# Keep raw pixel output (no post-process normalization) so downstream
+# preprocessing and UI previews use stable, natural-looking intensities.
+mtcnn = MTCNN(keep_all=False, device=device, post_process=False)
 
 # Transform for ResNet - MUST match training pipeline exactly
 # Training used: Resize -> Grayscale -> ToTensor -> Normalize
@@ -58,10 +60,23 @@ def preprocess_image(image_input):
         # Raise error if no face detected
         raise ValueError("No face detected in the image. Please provide an image with a clear, visible face.")
     
-    # Convert MTCNN tensor output back to PIL Image for proper transforms
-    # MTCNN returns tensor in range [0, 1] with shape (3, H, W)
-    face_np = face.permute(1, 2, 0).cpu().numpy()
-    face_np = (face_np * 255).astype(np.uint8)
+    # Convert MTCNN tensor output back to PIL Image for proper transforms.
+    # Depending on MTCNN settings/version, values can be in [-1, 1], [0, 1], or [0, 255].
+    face_np = face.permute(1, 2, 0).cpu().numpy().astype(np.float32)
+
+    min_val = float(face_np.min())
+    max_val = float(face_np.max())
+
+    if min_val >= -1.1 and max_val <= 1.1:
+        # Likely normalized range [-1, 1] or [0, 1]
+        if min_val < 0:
+            face_np = (face_np + 1.0) / 2.0
+        face_np = np.clip(face_np * 255.0, 0, 255)
+    else:
+        # Likely raw pixel range [0, 255]
+        face_np = np.clip(face_np, 0, 255)
+
+    face_np = face_np.astype(np.uint8)
     face_pil = Image.fromarray(face_np)
     
     # Apply the inference transform (grayscale + normalization to match training)

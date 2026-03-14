@@ -70,9 +70,13 @@ HF_EMOTION_MODEL = "SamLowe/roberta-base-go_emotions"  # Text emotion classifica
 HF_LYRIC_GEN_MODEL = "gpt2"  # Lyric generation model
 
 # Gradio Space Configuration for Image Emotion Detection
-GRADIO_IMAGE_EMOTION_SPACE = "IIITH-25-27/LyricMind_Models"  # Gradio Space on Hugging Face
+GRADIO_IMAGE_EMOTION_SPACE = "IIITH-25-27/image_to_emotion"  # Gradio Space on Hugging Face
 GRADIO_IMAGE_EMOTION_API_NAME = "/predict"  # API endpoint name
-GRADIO_IMAGE_EMOTION_SPACE_URL = "https://iiith-25-27-lyricmind-models.hf.space"  # Direct URL
+GRADIO_IMAGE_EMOTION_SPACE_URL = "https://iiith-25-27-image-to-emotion.hf.space"  # Direct URL
 
-# Model name for lyric generation
+# HF Space Configuration for Lyrics Generation
+HF_LYRIC_GEN_SPACE_URL = "https://iiith-25-27-lyrics-generator-for-emotion.hf.space/generate"  # Private HF Space
 LYRIC_GEN_MODEL_NAME = "LyricGen-v2"
+LYRIC_GEN_MAX_TOKENS = 100
+LYRIC_GEN_TEMPERATURE = 0.85
+LYRIC_GEN_TOP_P = 0.9

@@ -21,6 +21,12 @@ chats_col = db["chats"]
 # Message collection
 messages_col = db["messages"]
 
+# Data collection: image + preprocessed image + emotion
+image_emotion_data_col = db["image_emotion_data"]
+
+# Data collection: emotion + lyrics
+emotion_lyrics_data_col = db["emotion_lyrics_data"]
+
 # ============================================================================
 # INDEX CREATION
 # ============================================================================
@@ -50,6 +56,14 @@ def create_indexes():
     messages_col.create_index("user_id")
     messages_col.create_index("created_at")
     messages_col.create_index([("chat_id", 1), ("created_at", 1)])  # Compound for chat history
+
+    # Image-Emotion Data Collection Indexes
+    image_emotion_data_col.create_index("created_at")
+    image_emotion_data_col.create_index("emotion")
+
+    # Emotion-Lyrics Data Collection Indexes
+    emotion_lyrics_data_col.create_index("created_at")
+    emotion_lyrics_data_col.create_index("emotion")
 
 
 # Create indexes on module import

@@ -1,10 +1,50 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
+from datetime import datetime
+import base64
 
 from api.models import AnalyzeRequest, EmotionRequest
 from auth import get_current_user
 from ml_service import predict_emotion, generate_lyrics, predict_emotion_from_image
+from database_service import image_emotion_data_col, emotion_lyrics_data_col
 
 router = APIRouter(tags=["ML/AI"])
+
+
+def _to_data_url(image_bytes: bytes, content_type: str = "image/jpeg") -> str:
+    encoded = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:{content_type};base64,{encoded}"
+
+
+def _store_image_emotion_record(
+    image_bytes: bytes,
+    content_type: str,
+    input_filename: str,
+    emotion_result: dict,
+    user_id: str,
+):
+    try:
+        image_emotion_data_col.insert_one({
+            "image": _to_data_url(image_bytes, content_type),
+            "greyscale_small_image": emotion_result.get("preprocessed_image"),
+            "emotion": emotion_result.get("emotion"),
+            "user_id": user_id,
+            "input_filename": input_filename,
+            "created_at": datetime.utcnow(),
+        })
+    except Exception as db_error:
+        print(f"Warning: failed to store image_emotion_data record: {db_error}")
+
+
+def _store_emotion_lyrics_record(emotion: str, lyric_result: dict, user_id: str):
+    try:
+        emotion_lyrics_data_col.insert_one({
+            "emotion": emotion,
+            "lyrics": lyric_result.get("lyrics"),
+            "user_id": user_id,
+            "created_at": datetime.utcnow(),
+        })
+    except Exception as db_error:
+        print(f"Warning: failed to store emotion_lyrics_data record: {db_error}")
 
 
 # ─── Text Emotion Detection ────────────────────────────────────────────────────
@@ -76,6 +116,14 @@ async def get_emotion_from_image_endpoint(
                         "error_type": emotion_result.get("error_type", "ValidationError")
                     }
                 )
+
+        _store_image_emotion_record(
+            image_bytes=contents,
+            content_type=image.content_type or "image/jpeg",
+            input_filename=image.filename or "uploaded-image",
+            emotion_result=emotion_result,
+            user_id=str(current_user["_id"]),
+        )
         
         return {
             "input_type": "image",
@@ -106,6 +154,13 @@ def get_lyrics_for_emotion_endpoint(body: EmotionRequest, current_user=Depends(g
     """Generate lyrics based on detected emotion"""
     try:
         lyric_result = generate_lyrics(body.emotion)
+
+        _store_emotion_lyrics_record(
+            emotion=body.emotion,
+            lyric_result=lyric_result,
+            user_id=str(current_user["_id"]),
+        )
+
         return {
             "emotion": body.emotion,
             "lyric_generation": lyric_result,

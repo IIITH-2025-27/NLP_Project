@@ -3,7 +3,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from database_service import chats_col, messages_col
-from api.models import CreateChatRequest, UpdateChatRequest, CreateMessageRequest
+from api.models import CreateChatRequest, UpdateChatRequest, CreateMessageRequest, UpdateMessageRequest
 from auth import get_current_user
 
 router = APIRouter(tags=["Chats & Messages"])
@@ -192,3 +192,48 @@ def delete_message(message_id: str, current_user=Depends(get_current_user)):
     messages_col.delete_one({"_id": ObjectId(message_id)})
     
     return {"message": "Message deleted"}
+
+
+@router.put("/messages/{message_id}")
+def update_message(message_id: str, body: UpdateMessageRequest, current_user=Depends(get_current_user)):
+    """Update a specific message in-place"""
+    message = messages_col.find_one({
+        "_id": ObjectId(message_id),
+        "user_id": str(current_user["_id"])
+    })
+
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    update_data = {}
+
+    if body.content is not None:
+        update_data["content"] = body.content
+    if body.input_type is not None:
+        update_data["input_type"] = body.input_type
+    if body.image_preview is not None:
+        update_data["image_preview"] = body.image_preview
+    if body.emotion is not None:
+        update_data["emotion"] = body.emotion
+    if body.lyrics is not None:
+        update_data["lyrics"] = body.lyrics
+    if body.preprocessed_image is not None:
+        update_data["preprocessed_image"] = body.preprocessed_image
+
+    if update_data:
+        messages_col.update_one(
+            {"_id": ObjectId(message_id)},
+            {"$set": update_data}
+        )
+
+        # Refresh parent chat timestamp
+        if message.get("chat_id"):
+            chats_col.update_one(
+                {"_id": ObjectId(message["chat_id"])},
+                {"$set": {"updated_at": datetime.utcnow()}}
+            )
+
+    updated_message = messages_col.find_one({"_id": ObjectId(message_id)})
+    updated_message["_id"] = str(updated_message["_id"])
+    updated_message["id"] = str(updated_message["_id"])
+    return updated_message

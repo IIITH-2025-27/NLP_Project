@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { useAnalysis } from "../hooks/useAnalysis";
 import { useAuth } from "../context/AuthContext";
 import apiService from "../services/api.service";
-import LyricsCard from "../components/lyrics/LyricsCard";
+import DashboardSidebar from "../components/dashboard/DashboardSidebar";
+import DashboardChatSection from "../components/dashboard/DashboardChatSection";
+import DashboardLyricsPanel from "../components/dashboard/DashboardLyricsPanel";
 import { MAX_TEXT_LENGTH } from "../utils/constants";
 import "../assets/styles/dashboard.css";
 
@@ -20,17 +22,42 @@ export default function Dashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
+  const [cameraTarget, setCameraTarget] = useState("main");
   const [preprocessedModalOpen, setPreprocessedModalOpen] = useState(false);
   const [preprocessedImageToShow, setPreprocessedImageToShow] = useState(null);
+  const [pendingUserMessage, setPendingUserMessage] = useState(null);
+  const [submittedImagePreview, setSubmittedImagePreview] = useState(null);
+  const [retryContext, setRetryContext] = useState(null);
+  const [retryingAssistantId, setRetryingAssistantId] = useState(null);
+  const [regeneratedAssistantIds, setRegeneratedAssistantIds] = useState({});
+  const [imageEditModalOpen, setImageEditModalOpen] = useState(false);
+  const [editingImageMessage, setEditingImageMessage] = useState(null);
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imageEditFileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const requestRefs = useRef({});
+  const pendingRetryRef = useRef(null);
+  const retryInFlightRef = useRef(false);
+  const userSelectionScrollRef = useRef(false);
+  const retryImagePreviewRef = useRef(null);
+  const processedResultRef = useRef(null);
+
+  const scrollToBottom = (behavior = "auto") => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+      }, 60);
+    });
+  };
 
   const { user, logout } = useAuth();
-  const { analyze, analyzeImage, loading, result, error, reset } = useAnalysis();
+  const { analyze, analyzeImage, loading, result, reset } = useAnalysis();
 
   // Load chats from API on mount or when user changes
   useEffect(() => {
@@ -103,8 +130,82 @@ export default function Dashboard() {
   // Handle analysis result
   useEffect(() => {
     if (result) {
+      if (processedResultRef.current === result) {
+        return;
+      }
+      processedResultRef.current = result;
+
       const saveMessages = async () => {
         try {
+          const activeRetry = pendingRetryRef.current;
+
+          // Retry flow: update existing user request in place
+          if (activeRetry?.userMessageId) {
+            const existingUserMessage = messages.find(m => m.id === activeRetry.userMessageId);
+
+            const userMessageData = {
+              content:
+                result.input_text ||
+                existingUserMessage?.content ||
+                `[Image: ${result.input_filename || "uploaded"}]`,
+              input_type: result.input_type || existingUserMessage?.input_type,
+            };
+
+            if (userMessageData.input_type === "image") {
+              userMessageData.image_preview =
+                retryImagePreviewRef.current || existingUserMessage?.image_preview;
+            }
+            if (result.emotion_detection.preprocessed_image) {
+              userMessageData.preprocessed_image = result.emotion_detection.preprocessed_image;
+            }
+
+            const updatePayload = {
+              content: userMessageData.content,
+              input_type: userMessageData.input_type,
+              emotion: result.emotion_detection,
+              lyrics: result.lyric_generation.lyrics,
+            };
+
+            if (result.emotion_detection.preprocessed_image) {
+              updatePayload.preprocessed_image = result.emotion_detection.preprocessed_image;
+            }
+            if (userMessageData.input_type === "image" && userMessageData.image_preview) {
+              updatePayload.image_preview = userMessageData.image_preview;
+            }
+
+            const updatedUserMessage = await apiService.updateMessage(
+              activeRetry.userMessageId,
+              updatePayload
+            );
+
+            setMessages(prev =>
+              prev.map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
+            );
+
+            const requestMessages = messages
+              .map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
+              .filter(msg => Boolean(msg.lyrics));
+
+            const updatedAssistantIndex = requestMessages.findIndex(
+              msg => msg.id === updatedUserMessage.id
+            );
+            if (updatedAssistantIndex !== -1) {
+              setSelectedRequestIndex(updatedAssistantIndex);
+            }
+
+            setRetryingAssistantId(null);
+            setRegeneratedAssistantIds(prev => ({
+              ...prev,
+              [updatedUserMessage.id]: true,
+            }));
+            pendingRetryRef.current = null;
+            retryInFlightRef.current = false;
+            retryImagePreviewRef.current = null;
+            setRetryContext(null);
+            setText("");
+            return;
+          }
+
           // Create a chat if none exists
           let chatId = currentChatId;
           if (!chatId) {
@@ -115,42 +216,36 @@ export default function Dashboard() {
           }
           
           // Create user message
+          const resolvedInputType = result.input_type || 'text';
           const userMessageData = {
             content: result.input_text || `[Image: ${result.input_filename || 'uploaded'}]`,
             message_type: 'user',
+            input_type: resolvedInputType,
           };
           
-          // Add optional fields only if they have values
-          if (result.input_type) {
-            userMessageData.input_type = result.input_type;
-          }
-          if (result.input_type === 'image' && imagePreview) {
-            userMessageData.image_preview = imagePreview;
-          }
-          // Store preprocessed image in user message for later viewing
-          if (result.emotion_detection.preprocessed_image) {
-            userMessageData.preprocessed_image = result.emotion_detection.preprocessed_image;
+          if (resolvedInputType === 'image' && (submittedImagePreview || imagePreview)) {
+            userMessageData.image_preview = submittedImagePreview || imagePreview;
           }
           
           const userMessage = await apiService.createMessage(chatId, userMessageData);
-          
-          // Create assistant message
-          const assistantMessageData = {
-            content: result.lyric_generation.lyrics,
-            message_type: 'assistant',
+
+          const updatePayload = {
+            content: userMessageData.content,
+            input_type: resolvedInputType,
             emotion: result.emotion_detection,
-            lyrics: result.lyric_generation.lyrics
+            lyrics: result.lyric_generation.lyrics,
           };
-          
-          // Add preprocessed image if available
           if (result.emotion_detection.preprocessed_image) {
-            assistantMessageData.preprocessed_image = result.emotion_detection.preprocessed_image;
+            updatePayload.preprocessed_image = result.emotion_detection.preprocessed_image;
           }
-          
-          const assistantMessage = await apiService.createMessage(chatId, assistantMessageData);
+          if (resolvedInputType === 'image' && userMessageData.image_preview) {
+            updatePayload.image_preview = userMessageData.image_preview;
+          }
+
+          const updatedUserMessage = await apiService.updateMessage(userMessage.id, updatePayload);
           
           // Update local messages state
-          setMessages(prev => [...prev, userMessage, assistantMessage]);
+          setMessages(prev => [...prev, updatedUserMessage]);
           
           // Update chat title with first user message
           const chat = chats.find(c => c.id === chatId);
@@ -166,13 +261,27 @@ export default function Dashboard() {
           }
           
           // Auto-select the latest request
-          const assistantMessages = [...messages, userMessage, assistantMessage].filter(m => m.message_type === 'assistant');
-          setSelectedRequestIndex(assistantMessages.length - 1);
+          const requestMessages = [...messages, updatedUserMessage].filter(m => Boolean(m.lyrics));
+          setSelectedRequestIndex(requestMessages.length - 1);
           
           setText("");
           handleRemoveImage();
+          setPendingUserMessage(null);
+          setSubmittedImagePreview(null);
+          setRetryContext(null);
+          setRetryingAssistantId(null);
+          retryInFlightRef.current = false;
+          retryImagePreviewRef.current = null;
         } catch (err) {
           console.error("Failed to save messages:", err);
+          setPendingUserMessage(null);
+          setSubmittedImagePreview(null);
+          pendingRetryRef.current = null;
+          retryInFlightRef.current = false;
+          retryImagePreviewRef.current = null;
+          setRetryingAssistantId(null);
+          setRetryContext(null);
+          processedResultRef.current = null;
         }
       };
       
@@ -180,26 +289,130 @@ export default function Dashboard() {
     }
   }, [result]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom only when message count changes
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [currentMessages]);
+    scrollToBottom("smooth");
+  }, [currentMessages.length]);
+
+  // Keep newest pending image + loader visible without manual scrolling (except in-place retry/edit)
+  useEffect(() => {
+    if ((loading || pendingUserMessage) && !retryContext) {
+      scrollToBottom("auto");
+    }
+  }, [loading, pendingUserMessage, retryContext, currentChatId, currentMessages.length]);
 
   // Auto-select latest request when chat changes or messages load
   useEffect(() => {
-    const assistantMessages = currentMessages.filter(msg => msg.message_type === 'assistant');
-    if (assistantMessages.length > 0 && selectedRequestIndex === null) {
-      setSelectedRequestIndex(assistantMessages.length - 1);
+    const requestMessages = currentMessages.filter(msg => Boolean(msg.lyrics));
+    if (requestMessages.length > 0 && selectedRequestIndex === null) {
+      setSelectedRequestIndex(requestMessages.length - 1);
     }
   }, [currentChatId, currentMessages, selectedRequestIndex]);
 
   const handleAnalyze = async () => {
     if (inputMode === "text") {
       if (!text.trim() || loading) return;
-      await analyze(text);
+      const currentText = text.trim();
+
+      setPendingUserMessage({
+        id: `pending-text-${Date.now()}`,
+        input_type: "text",
+        content: currentText,
+        message_type: "user",
+      });
+      setText("");
+      scrollToBottom("auto");
+
+      try {
+        await analyze(currentText);
+      } catch (err) {
+        setPendingUserMessage(null);
+        throw err;
+      }
     } else if (inputMode === "image") {
       if (!selectedImage || loading) return;
-      await analyzeImage(selectedImage);
+      const currentPreview = imagePreview;
+      const currentImage = selectedImage;
+
+      if (currentPreview) {
+        setSubmittedImagePreview(currentPreview);
+        setPendingUserMessage({
+          id: `pending-image-${Date.now()}`,
+          input_type: "image",
+          image_preview: currentPreview,
+          message_type: "user",
+        });
+      }
+
+      // Close large image input box immediately
+      handleRemoveImage();
+      setInputMode("text");
+      scrollToBottom("auto");
+
+      try {
+        await analyzeImage(currentImage);
+      } catch (err) {
+        try {
+          // Persist failed image request so preview remains visible in chat history
+          let chatId = currentChatId;
+          if (!chatId) {
+            const newChat = await apiService.createChat("New Chat");
+            setChats(prev => [newChat, ...prev]);
+            setCurrentChatId(newChat.id);
+            chatId = newChat.id;
+          }
+
+          const fallbackError = err?.message || "Failed to analyze image";
+          const userMessageData = {
+            content: `[Image: ${currentImage?.name || "uploaded"}]`,
+            message_type: "user",
+            input_type: "image",
+            image_preview: currentPreview,
+          };
+
+          const userMessage = await apiService.createMessage(chatId, userMessageData);
+
+          const errorUpdatePayload = {
+            content: userMessageData.content,
+            input_type: "image",
+            emotion: {
+              emotion: "Invalid input",
+              confidence: 0,
+              meta: {
+                emoji: "⚠️",
+                description: fallbackError,
+                is_error: true,
+              },
+            },
+            lyrics: "Invalid input",
+          };
+
+          const updatedUserMessage = await apiService.updateMessage(userMessage.id, errorUpdatePayload);
+
+          setMessages(prev => [...prev, updatedUserMessage]);
+
+          const requestMessages = [...messages, updatedUserMessage].filter(
+            message => Boolean(message.lyrics)
+          );
+          setSelectedRequestIndex(requestMessages.length - 1);
+
+          const chat = chats.find(c => c.id === chatId);
+          if (!chat || chat.title === "New Chat") {
+            const displayContent = userMessageData.content;
+            await apiService.updateChat(chatId, { title: displayContent });
+            setChats(prev => prev.map(chatItem =>
+              chatItem.id === chatId ? { ...chatItem, title: displayContent } : chatItem
+            ));
+          }
+
+          reset();
+        } catch (saveErr) {
+          console.error("Failed to save failed image request:", saveErr);
+        } finally {
+          setPendingUserMessage(null);
+          setSubmittedImagePreview(null);
+        }
+      }
     }
   };
 
@@ -262,7 +475,8 @@ export default function Dashboard() {
     }
   };
 
-  const handleCameraOpen = () => {
+  const handleCameraOpen = (target = "main") => {
+    setCameraTarget(target);
     setCameraModalOpen(true);
   };
 
@@ -280,8 +494,16 @@ export default function Dashboard() {
       canvas.toBlob((blob) => {
         if (blob) {
           const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
-          setSelectedImage(file);
-          setImagePreview(canvas.toDataURL('image/jpeg'));
+          const capturedPreview = canvas.toDataURL('image/jpeg');
+
+          if (cameraTarget === "edit") {
+            setEditImageFile(file);
+            setEditImagePreview(capturedPreview);
+          } else {
+            setSelectedImage(file);
+            setImagePreview(capturedPreview);
+          }
+
           handleCameraClose();
         }
       }, 'image/jpeg', 0.95);
@@ -291,6 +513,7 @@ export default function Dashboard() {
   const handleCameraClose = () => {
     stopCamera();
     setCameraModalOpen(false);
+    setCameraTarget("main");
   };
 
   // Start camera when modal opens
@@ -327,12 +550,19 @@ export default function Dashboard() {
   // Switch to a different chat
   const handleChatSelect = async (chatId) => {
     setCurrentChatId(chatId);
+    setMessages([]);
+    setSelectedRequestIndex(null);
+    setRetryingAssistantId(null);
+    setRegeneratedAssistantIds({});
+    setPendingUserMessage(null);
+    setSubmittedImagePreview(null);
+    pendingRetryRef.current = null;
+    retryInFlightRef.current = false;
     await loadMessages(chatId);
     reset();
     setText("");
     setInputMode("text");
     handleRemoveImage();
-    setSelectedRequestIndex(null);
   };
 
   // Delete a chat
@@ -399,8 +629,9 @@ export default function Dashboard() {
     { emoji: "😠", text: "I'm so frustrated and angry about this situation" }
   ];
 
-  // Get requests (assistant messages with lyrics) from current chat
-  const requests = currentMessages.filter(msg => msg.message_type === 'assistant');
+  // Get requests (messages that have generated lyrics) from current chat
+  const requests = currentMessages.filter(msg => Boolean(msg.lyrics));
+  const pendingRequestNum = requests.length + 1;
   
   // Get selected request data
   const selectedRequest = selectedRequestIndex !== null && requests[selectedRequestIndex] 
@@ -409,395 +640,307 @@ export default function Dashboard() {
 
   // Helper function to get request number for user messages
   const getUserRequestNumber = (userMsgIndex) => {
-    // Find the next assistant message after this user message
+    const currentMessage = currentMessages[userMsgIndex];
+    if (currentMessage?.lyrics) {
+      const requestIndex = requests.findIndex(req => req.id === currentMessage.id);
+      return requestIndex !== -1 ? requestIndex + 1 : null;
+    }
+
     for (let i = userMsgIndex + 1; i < currentMessages.length; i++) {
-      if (currentMessages[i].message_type === 'assistant') {
-        const assistantIndex = requests.findIndex(req => req.id === currentMessages[i].id);
-        return assistantIndex !== -1 ? assistantIndex + 1 : null;
+      if (currentMessages[i].lyrics) {
+        const requestIndex = requests.findIndex(req => req.id === currentMessages[i].id);
+        return requestIndex !== -1 ? requestIndex + 1 : null;
       }
     }
     return null;
   };
 
-  // Scroll to selected request's user message when it changes
+  const handleMessageSelect = (message, messageIndex) => {
+    if (message.lyrics) {
+      const requestIndex = requests.findIndex(req => req.id === message.id);
+      if (requestIndex !== -1) {
+        userSelectionScrollRef.current = true;
+        setSelectedRequestIndex(requestIndex);
+      }
+      return;
+    }
+
+    // For non-request messages, select the next generated request if available
+    for (let i = messageIndex + 1; i < currentMessages.length; i++) {
+      if (currentMessages[i].lyrics) {
+        const requestIndex = requests.findIndex(req => req.id === currentMessages[i].id);
+        if (requestIndex !== -1) {
+          userSelectionScrollRef.current = true;
+          setSelectedRequestIndex(requestIndex);
+        }
+        break;
+      }
+    }
+  };
+
+  const handleRequestDropdownChange = (value) => {
+    if (value === '') {
+      setSelectedRequestIndex(null);
+      return;
+    }
+    userSelectionScrollRef.current = true;
+    setSelectedRequestIndex(parseInt(value));
+  };
+
+  const dataUrlToFile = (dataUrl, fileName = "retry-image.jpg") => {
+    const parts = dataUrl.split(",");
+    if (parts.length !== 2) {
+      throw new Error("Invalid image preview format");
+    }
+
+    const mimeMatch = parts[0].match(/data:(.*?);base64/);
+    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+    const byteString = atob(parts[1]);
+    const byteArray = new Uint8Array(byteString.length);
+
+    for (let i = 0; i < byteString.length; i++) {
+      byteArray[i] = byteString.charCodeAt(i);
+    }
+
+    return new File([byteArray], fileName, { type: mimeType });
+  };
+
+  const resetRetryFlowState = () => {
+    pendingRetryRef.current = null;
+    retryInFlightRef.current = false;
+    retryImagePreviewRef.current = null;
+    setRetryContext(null);
+    setRetryingAssistantId(null);
+  };
+
+  const prepareRequestRegeneration = (message) => {
+    const targetMessage = currentMessages.find(msg => msg.id === message.id);
+    if (!targetMessage) {
+      alert("Unable to edit this request.");
+      return null;
+    }
+
+    if (!targetMessage.lyrics) {
+      alert("No generated lyrics found for this input.");
+      return null;
+    }
+
+    const nextRetryContext = {
+      userMessageId: message.id,
+    };
+
+    pendingRetryRef.current = nextRetryContext;
+    retryInFlightRef.current = true;
+    setRetryContext(nextRetryContext);
+    setRetryingAssistantId(message.id);
+    setRegeneratedAssistantIds(prev => {
+      const next = { ...prev };
+      delete next[message.id];
+      return next;
+    });
+
+    return nextRetryContext;
+  };
+
+  const handleRetryRequest = async (message) => {
+    if (loading || retryInFlightRef.current) return;
+
+    try {
+      if (!prepareRequestRegeneration(message)) {
+        return;
+      }
+
+      if (message.input_type === "image") {
+        if (!message.image_preview) {
+          alert("Image preview not available for retry.");
+          resetRetryFlowState();
+          return;
+        }
+
+        const imageFile = dataUrlToFile(message.image_preview, `retry-${message.id}.jpg`);
+        retryImagePreviewRef.current = message.image_preview;
+        await analyzeImage(imageFile);
+        return;
+      }
+
+      const retryText = (message.content || "").trim();
+      if (!retryText) {
+        resetRetryFlowState();
+        return;
+      }
+
+      await analyze(retryText);
+    } catch (err) {
+      console.error("Retry failed:", err);
+      resetRetryFlowState();
+      alert("Failed to retry this request. Please try again.");
+    }
+  };
+
+  const handleEditTextRequest = async (message, updatedText) => {
+    if (loading || retryInFlightRef.current) return;
+
+    const nextText = (updatedText || "").trim();
+    if (!nextText) {
+      alert("Text cannot be empty.");
+      return;
+    }
+
+    try {
+      if (!prepareRequestRegeneration(message)) {
+        return;
+      }
+
+      setInputMode("text");
+      setText(nextText);
+      await analyze(nextText);
+    } catch (err) {
+      console.error("Edit text request failed:", err);
+      resetRetryFlowState();
+      alert("Failed to update this request. Please try again.");
+    }
+  };
+
+  const openImageEditModal = (message) => {
+    if (loading || retryInFlightRef.current) return;
+    if (!message?.image_preview) {
+      alert("Image preview not available for edit.");
+      return;
+    }
+
+    setEditingImageMessage(message);
+    setEditImagePreview(message.image_preview);
+    setEditImageFile(null);
+    setImageEditModalOpen(true);
+  };
+
+  const closeImageEditModal = () => {
+    setImageEditModalOpen(false);
+    setEditingImageMessage(null);
+    setEditImageFile(null);
+    setEditImagePreview(null);
+    if (imageEditFileInputRef.current) {
+      imageEditFileInputRef.current.value = "";
+    }
+  };
+
+  const handleImageEditSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image size must be less than 10MB");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
+    }
+
+    setEditImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmitImageEdit = async () => {
+    if (!editingImageMessage || !editImageFile || loading || retryInFlightRef.current) return;
+
+    try {
+      if (!prepareRequestRegeneration(editingImageMessage)) {
+        return;
+      }
+
+      retryImagePreviewRef.current = editImagePreview || editingImageMessage.image_preview;
+      closeImageEditModal();
+      await analyzeImage(editImageFile);
+    } catch (err) {
+      console.error("Edit image request failed:", err);
+      resetRetryFlowState();
+      alert("Failed to update this image request. Please try again.");
+    }
+  };
+
+  // Scroll to selected request message when it changes
   useEffect(() => {
+    if (!userSelectionScrollRef.current) return;
+    if (loading || pendingUserMessage) return;
+
     if (selectedRequestIndex !== null) {
-      // Find the user message that precedes the selected assistant message
-      const assistantMsg = requests[selectedRequestIndex];
-      if (assistantMsg) {
-        const assistantIdx = currentMessages.findIndex(msg => msg.id === assistantMsg.id);
-        // Look backwards for the user message
-        for (let i = assistantIdx - 1; i >= 0; i--) {
-          if (currentMessages[i].message_type === 'user') {
-            const element = requestRefs.current[currentMessages[i].id];
-            if (element) {
-              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            break;
-          }
+      const selectedRequestMsg = requests[selectedRequestIndex];
+      if (selectedRequestMsg) {
+        const element = requestRefs.current[selectedRequestMsg.id];
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }
     }
-  }, [selectedRequestIndex, requests, currentMessages]);
+    userSelectionScrollRef.current = false;
+  }, [selectedRequestIndex, requests, currentMessages, loading, pendingUserMessage]);
 
   return (
     <div className="chat-layout" onClick={handleOverlayClick}>
-      {/* Sidebar */}
-      <aside className={`chat-sidebar ${sidebarOpen ? '' : 'closed'}`}>
-        <div className="sidebar-header">
-          <button className="new-chat-btn" onClick={handleNewChat}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            New chat
-          </button>
-        </div>
+      <DashboardSidebar
+        sidebarOpen={sidebarOpen}
+        handleNewChat={handleNewChat}
+        loadingChats={loadingChats}
+        chatList={chatList}
+        currentChatId={currentChatId}
+        handleChatSelect={handleChatSelect}
+        handleDeleteChat={handleDeleteChat}
+        user={user}
+        logout={logout}
+      />
 
-        <div className="sidebar-content">
-          <div className="sidebar-section">
-            <h3 className="sidebar-title">Recent Chats</h3>
-            {chatList.length > 0 ? (
-              <div className="history-items">
-                {chatList.map(chat => (
-                  <div 
-                    key={chat.id} 
-                    className={`history-item ${chat.id === currentChatId ? 'active' : ''}`}
-                    onClick={() => handleChatSelect(chat.id)}
-                  >
-                    <div className="history-text">
-                      {chat.title}
-                    </div>
-                    <button 
-                      className="history-delete"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteChat(chat.id);
-                      }}
-                      title="Delete chat"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="sidebar-empty">No chats yet</div>
-            )}
-          </div>
-        </div>
-
-        <div className="sidebar-footer">
-          <div className="user-menu">
-            <div className="user-avatar-small">
-              {user?.name?.charAt(0).toUpperCase() || "U"}
-            </div>
-            <span className="user-name-small">{user?.name}</span>
-            <button className="logout-icon" onClick={logout} title="Logout">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content - Split Layout */}
       <div className="split-container">
-        {/* Left: Chat Section */}
-        <main className="chat-main">
-          <header className="chat-header">
-            <button 
-              className="sidebar-toggle"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12h18M3 6h18M3 18h18"/>
-              </svg>
-            </button>
-            <h1 className="chat-title">LyricMind</h1>
-          </header>
+        <DashboardChatSection
+          loadingChats={loadingChats}
+          loadingMessages={loadingMessages}
+          currentMessages={currentMessages}
+          examplePrompts={examplePrompts}
+          setText={setText}
+          requestRefs={requestRefs}
+          user={user}
+          getUserRequestNumber={getUserRequestNumber}
+          handleMessageSelect={handleMessageSelect}
+          setPreprocessedImageToShow={setPreprocessedImageToShow}
+          setPreprocessedModalOpen={setPreprocessedModalOpen}
+          handleRetryRequest={handleRetryRequest}
+          loading={loading}
+          retryingAssistantId={retryingAssistantId}
+          regeneratedAssistantIds={regeneratedAssistantIds}
+          pendingUserMessage={pendingUserMessage}
+          pendingRequestNum={pendingRequestNum}
+          retryContext={retryContext}
+          inputMode={inputMode}
+          messagesEndRef={messagesEndRef}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          handleModeSwitch={handleModeSwitch}
+          textareaRef={textareaRef}
+          text={text}
+          maxTextLength={MAX_TEXT_LENGTH}
+          handleKeyDown={handleKeyDown}
+          handleAnalyze={handleAnalyze}
+          imagePreview={imagePreview}
+          fileInputRef={fileInputRef}
+          handleImageSelect={handleImageSelect}
+          handleCameraOpen={handleCameraOpen}
+          handleRemoveImage={handleRemoveImage}
+          handleEditTextRequest={handleEditTextRequest}
+          openImageEditModal={openImageEditModal}
+        />
 
-          <div className="chat-messages">
-            {currentMessages.length === 0 ? (
-              <div className="welcome-screen">
-                <div className="welcome-icon">𝄞</div>
-                <h2 className="welcome-title">LyricMind</h2>
-                <p className="welcome-subtitle">Express yourself and transform your emotions into lyrical art</p>
-                
-                <div className="example-prompts">
-                  {examplePrompts.map((prompt, idx) => (
-                    <button
-                      key={idx}
-                      className="example-prompt"
-                      onClick={() => setText(prompt.text)}
-                    >
-                      <span className="prompt-emoji">{prompt.emoji}</span>
-                      <span className="prompt-text">{prompt.text}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                {currentMessages.map((msg, index) => {
-                  const requestNum = msg.message_type === 'user' ? getUserRequestNumber(index) : null;
-                  
-                  return (
-                    <div 
-                      key={msg.id} 
-                      className={`message ${msg.message_type}`}
-                      ref={(el) => requestRefs.current[msg.id] = el}
-                    >
-                      <div className="message-avatar">
-                        {msg.message_type === 'user' ? (
-                          <span>{requestNum || user?.name?.charAt(0).toUpperCase() || "U"}</span>
-                        ) : (
-                          <span>𝄞</span>
-                        )}
-                      </div>
-                      <div className="message-content">
-                        {msg.message_type === 'user' && msg.input_type === 'image' && msg.image_preview ? (
-                          <div className="message-image">
-                            <img src={msg.image_preview} alt="Uploaded" />
-                            {msg.preprocessed_image && (
-                              <button 
-                                className="preprocessed-view-btn"
-                                onClick={() => {
-                                  setPreprocessedImageToShow(msg.preprocessed_image);
-                                  setPreprocessedModalOpen(true);
-                                }}
-                                title="View preprocessed image (224×224 face)"
-                              >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                  <circle cx="12" cy="12" r="3"/>
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="message-text">
-                            {msg.message_type === 'user' ? msg.content : 'Lyrics generated successfully ✓'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                
-                {/* Loading indicator */}
-                {loading && (
-                  <div className="message assistant">
-                    <div className="message-avatar">
-                      <span>𝄞</span>
-                    </div>
-                    <div className="message-content">
-                      <div className="loading-message">
-                        <div className="loading-dots">
-                          <span className="dot"></span>
-                          <span className="dot"></span>
-                          <span className="dot"></span>
-                        </div>
-                        <span className="loading-text">
-                          {inputMode === 'image' ? 'Analyzing image...' : 'Analyzing text...'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
-
-          <div className="chat-input-container">
-            {/* Mode Toggle */}
-            <div className="input-mode-toggle">
-              <button
-                className={`mode-btn ${inputMode === "text" ? "active" : ""}`}
-                onClick={() => handleModeSwitch("text")}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 7h16M4 12h16M4 17h10"/>
-                </svg>
-                Text
-              </button>
-              <button
-                className={`mode-btn ${inputMode === "image" ? "active" : ""}`}
-                onClick={() => handleModeSwitch("image")}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <path d="M21 15l-5-5L5 21"/>
-                </svg>
-                Image
-              </button>
-            </div>
-
-            {/* Text Input */}
-            {inputMode === "text" && (
-              <div className="chat-input-wrapper">
-                <textarea
-                  ref={textareaRef}
-                  className="chat-input"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Message LyricMind..."
-                  maxLength={MAX_TEXT_LENGTH}
-                  rows={1}
-                  disabled={loading}
-                />
-                <button 
-                  className="send-button"
-                  onClick={handleAnalyze}
-                  disabled={!text.trim() || loading}
-                >
-                  {loading ? (
-                    <svg className="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10"/>
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {/* Image Input */}
-            {inputMode === "image" && (
-              <div className="image-input-wrapper">
-                {!imagePreview ? (
-                  <div className="image-upload-area">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageSelect}
-                      style={{ display: "none" }}
-                      disabled={loading}
-                    />
-                    <div className="upload-buttons-group">
-                      <button
-                        className="upload-button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={loading}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-                        </svg>
-                        <span>Browse Files</span>
-                      </button>
-                      <button
-                        className="upload-button camera-button"
-                        onClick={handleCameraOpen}
-                        disabled={loading}
-                      >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                          <circle cx="12" cy="13" r="4"/>
-                        </svg>
-                        <span>Take Photo</span>
-                      </button>
-                    </div>
-                    <span className="upload-hint">Max 10MB • JPG, PNG, GIF</span>
-                  </div>
-                ) : (
-                  <div className="image-preview-container">
-                    <div className="image-preview">
-                      <img src={imagePreview} alt="Selected" />
-                      <button
-                        className="remove-image-btn"
-                        onClick={handleRemoveImage}
-                        disabled={loading}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M18 6L6 18M6 6l12 12"/>
-                        </svg>
-                      </button>
-                    </div>
-                    <button
-                      className="send-button"
-                      onClick={handleAnalyze}
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <svg className="spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                        </svg>
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                        </svg>
-                      )}
-                      Analyze Image
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {error && <div className="input-error">{error}</div>}
-          </div>
-        </main>
-
-        {/* Right: Lyrics Section */}
-        <aside className="lyrics-panel">
-          <div className="lyrics-panel-header">
-            <label htmlFor="request-select" className="request-label">Select Request:</label>
-            <select 
-              id="request-select"
-              className="request-dropdown"
-              value={selectedRequestIndex !== null ? selectedRequestIndex : ''}
-              onChange={(e) => setSelectedRequestIndex(e.target.value === '' ? null : parseInt(e.target.value))}
-              disabled={requests.length === 0}
-            >
-              <option value="">Select a request...</option>
-              {requests.map((_, index) => (
-                <option key={index} value={index}>
-                  Request {index + 1}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lyrics-panel-content">
-            {selectedRequest ? (
-              <div className="lyrics-display">
-                <div className="lyrics-emotion-compact">
-                  <span className="lyrics-emoji">{selectedRequest.emotion.meta?.emoji || "❓"}</span>
-                  <div className="lyrics-emotion-info">
-                    <span className="lyrics-emotion-name">{selectedRequest.emotion.emotion}</span>
-                    <span className="lyrics-emotion-desc">{selectedRequest.emotion.meta?.description || ""}</span>
-                  </div>
-                  <div className="lyrics-confidence-badge">
-                    {Math.round(selectedRequest.emotion.confidence * 100)}%
-                  </div>
-                </div>
-                <div className="lyrics-text-section">
-                  <h3>Generated Lyrics</h3>
-                  <LyricsCard 
-                    lyrics={selectedRequest.lyrics}
-                    emotion={selectedRequest.emotion.emotion}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="lyrics-empty">
-                <div className="lyrics-empty-icon">🎵</div>
-                <p>Select a request to view lyrics</p>
-              </div>
-            )}
-          </div>
-        </aside>
+        <DashboardLyricsPanel
+          selectedRequestIndex={selectedRequestIndex}
+          handleRequestDropdownChange={handleRequestDropdownChange}
+          loadingMessages={loadingMessages}
+          requests={requests}
+          selectedRequest={selectedRequest}
+        />
       </div>
 
       {/* Camera Modal */}
@@ -830,6 +973,65 @@ export default function Dashboard() {
                   <circle cx="12" cy="12" r="10"/>
                 </svg>
                 Capture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Edit Modal */}
+      {imageEditModalOpen && (
+        <div className="image-edit-modal-overlay" onClick={closeImageEditModal}>
+          <div className="image-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="image-edit-modal-header">
+              <h3>Edit Image Input</h3>
+              <button className="image-edit-close-btn" onClick={closeImageEditModal}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="image-edit-modal-body">
+              <input
+                ref={imageEditFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageEditSelect}
+                style={{ display: "none" }}
+                disabled={loading}
+              />
+              <div className="image-edit-actions-row">
+                <button
+                  className="image-edit-upload-btn"
+                  onClick={() => imageEditFileInputRef.current?.click()}
+                  disabled={loading}
+                >
+                  Choose Image
+                </button>
+                <button
+                  className="image-edit-upload-btn"
+                  onClick={() => handleCameraOpen("edit")}
+                  disabled={loading}
+                >
+                  Take Photo
+                </button>
+              </div>
+              {editImagePreview && (
+                <div className="image-edit-preview">
+                  <img src={editImagePreview} alt="Edited input preview" />
+                </div>
+              )}
+            </div>
+            <div className="image-edit-modal-footer">
+              <button className="image-edit-cancel-btn" onClick={closeImageEditModal} disabled={loading}>
+                Cancel
+              </button>
+              <button
+                className="image-edit-save-btn"
+                onClick={handleSubmitImageEdit}
+                disabled={!editImageFile || loading}
+              >
+                Analyze Image
               </button>
             </div>
           </div>
