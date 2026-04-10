@@ -4,7 +4,14 @@ Handles MongoDB connection and collections management
 """
 
 from .connection import client, db
-from .collections import users_col, otp_col, chats_col, messages_col
+from .collections import (
+    users_col,
+    otp_col,
+    chats_col,
+    messages_col,
+    image_emotion_data_col,
+    emotion_lyrics_data_col,
+)
 
 __all__ = [
     'client',
@@ -12,5 +19,7 @@ __all__ = [
     'users_col',
     'otp_col',
     'chats_col',
-    'messages_col'
+    'messages_col',
+    'image_emotion_data_col',
+    'emotion_lyrics_data_col',
 ]

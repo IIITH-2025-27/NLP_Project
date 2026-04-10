@@ -79,6 +79,7 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
     Returns:
         dict: Contains emotion, confidence, scores, meta, source, and model info
     """
+    preprocessed_base64 = None
     try:
         # Preprocess image: detect face, crop, and resize to 224x224
         # This ensures the image matches the model's training data format
@@ -183,7 +184,7 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
         if "JSONDecodeError" in error_message or "404" in error_message:
             error_message += f" - The Gradio Space may be sleeping or unavailable. Please check: https://huggingface.co/spaces/{GRADIO_IMAGE_EMOTION_SPACE}"
         
-        return {
+        fallback_response = {
             "emotion": default_emotion,
             "confidence": 0.5,
             "scores": {e: round(1.0/len(EMOTIONS), 3) for e in EMOTIONS},
@@ -192,3 +193,8 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
             "error": error_message,
             "model": f"{GRADIO_IMAGE_EMOTION_SPACE} (API Error)"
         }
+
+        if preprocessed_base64:
+            fallback_response["preprocessed_image"] = preprocessed_base64
+
+        return fallback_response

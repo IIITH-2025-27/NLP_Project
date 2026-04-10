@@ -10,10 +10,10 @@ Usage:
 from huggingface_hub import login, upload_folder
 
 # Local path to your model folder
-LOCAL_MODEL_PATH = "/home/vikash/Downloads/resnet50_c3_lr3e-04_bs32_aug_heavy_opt_adam_drop0.5_ls0.1_6class.pth-20260311T173655Z-1-001/resnet50_c3_lr3e-04_bs32_aug_heavy_opt_adam_drop0.5_ls0.1_6class_acc0.6743.pth"  # Current directory, or use absolute path like "/path/to/model"
+LOCAL_MODEL_PATH = "/home/vikash/Desktop/Lyric_generator_model/model"# Current directory, or use absolute path like "/path/to/model"
 
 # Hugging Face repository ID (format: username/repo-name)
-HF_REPO_ID = "IIITH-25-27/resnet50_image_to_emotion_acc_67"
+HF_REPO_ID = "IIITH-25-27/Spotify_gpt2_medium"
 
 # Repository type: "model" or "dataset"
 REPO_TYPE = "model"
