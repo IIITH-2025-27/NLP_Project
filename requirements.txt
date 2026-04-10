@@ -16,3 +16,5 @@ pillow               # Image loading & preprocessing
 tqdm                 # Progress bars for training loops
 scikit-learn         # Metrics, evaluation & confusion matrix
 datasets             # Hugging Face datasets library for loading data
+gradio_client       # Hugging Face Gradio client for model deployment
+huggingface_hub     # Hugging Face Hub for model uploading & management
