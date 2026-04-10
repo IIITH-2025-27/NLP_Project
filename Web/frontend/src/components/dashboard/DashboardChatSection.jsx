@@ -124,6 +124,13 @@ export default function DashboardChatSection({
           <>
             {currentMessages.map((msg, index) => {
               const requestNum = msg.message_type === 'user' ? getUserRequestNumber(index) : null;
+              const preprocessedImageSrc =
+                msg.preprocessed_image ||
+                msg?.emotion?.preprocessed_image ||
+                msg?.emotion?.meta?.preprocessed_image ||
+                msg?.emotion?.meta?.greyscale_small_image ||
+                msg?.greyscale_small_image ||
+                null;
 
               return (
                 <div
@@ -147,12 +154,12 @@ export default function DashboardChatSection({
                       <>
                         <div className="message-image">
                           <img src={msg.image_preview} alt="Uploaded" />
-                          {msg.preprocessed_image && (
+                          {preprocessedImageSrc && (
                             <button
                               className="preprocessed-view-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setPreprocessedImageToShow(msg.preprocessed_image);
+                                setPreprocessedImageToShow(preprocessedImageSrc);
                                 setPreprocessedModalOpen(true);
                               }}
                               title="View preprocessed image (224×224 face)"

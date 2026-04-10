@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [editingImageMessage, setEditingImageMessage] = useState(null);
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [errorToast, setErrorToast] = useState("");
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -46,6 +47,34 @@ export default function Dashboard() {
   const userSelectionScrollRef = useRef(false);
   const retryImagePreviewRef = useRef(null);
   const processedResultRef = useRef(null);
+  const toastTimerRef = useRef(null);
+
+  const getErrorMessage = (error, fallback = "Something went wrong. Please try again.") => {
+    if (!error) return fallback;
+    if (typeof error === "string") return error;
+    return error.message || fallback;
+  };
+
+  const showErrorToast = (message) => {
+    setErrorToast(message || "Something went wrong. Please try again.");
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      setErrorToast("");
+      toastTimerRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
 
   const scrollToBottom = (behavior = "auto") => {
     requestAnimationFrame(() => {
@@ -86,6 +115,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Failed to load chats:", err);
+      showErrorToast(getErrorMessage(err, "Failed to load chats."));
     } finally {
       setLoadingChats(false);
     }
@@ -99,6 +129,7 @@ export default function Dashboard() {
       setMessages(data.messages || []);
     } catch (err) {
       console.error("Failed to load messages:", err);
+      showErrorToast(getErrorMessage(err, "Failed to load messages."));
       setMessages([]);
     } finally {
       setLoadingMessages(false);
@@ -120,6 +151,7 @@ export default function Dashboard() {
       return newChat;
     } catch (err) {
       console.error("Failed to create new chat:", err);
+      showErrorToast(getErrorMessage(err, "Failed to create new chat."));
     }
   };
 
@@ -274,6 +306,7 @@ export default function Dashboard() {
           retryImagePreviewRef.current = null;
         } catch (err) {
           console.error("Failed to save messages:", err);
+          showErrorToast(getErrorMessage(err, "Failed to save messages."));
           setPendingUserMessage(null);
           setSubmittedImagePreview(null);
           pendingRetryRef.current = null;
@@ -327,7 +360,7 @@ export default function Dashboard() {
         await analyze(currentText);
       } catch (err) {
         setPendingUserMessage(null);
-        throw err;
+        showErrorToast(getErrorMessage(err, "Failed to generate lyrics."));
       }
     } else if (inputMode === "image") {
       if (!selectedImage || loading) return;
@@ -352,6 +385,7 @@ export default function Dashboard() {
       try {
         await analyzeImage(currentImage);
       } catch (err) {
+        showErrorToast(getErrorMessage(err, "Failed to analyze image."));
         try {
           // Persist failed image request so preview remains visible in chat history
           let chatId = currentChatId;
@@ -408,6 +442,7 @@ export default function Dashboard() {
           reset();
         } catch (saveErr) {
           console.error("Failed to save failed image request:", saveErr);
+          showErrorToast(getErrorMessage(saveErr, "Failed to save failed image request."));
         } finally {
           setPendingUserMessage(null);
           setSubmittedImagePreview(null);
@@ -463,7 +498,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
-      alert("Unable to access camera. Please check permissions.");
+      showErrorToast("Unable to access camera. Please check permissions.");
       setCameraModalOpen(false);
     }
   };
@@ -586,6 +621,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Error deleting chat:', err);
+      showErrorToast(getErrorMessage(err, "Failed to delete chat."));
     }
   };
 
@@ -773,7 +809,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Retry failed:", err);
       resetRetryFlowState();
-      alert("Failed to retry this request. Please try again.");
+      showErrorToast(getErrorMessage(err, "Failed to retry this request. Please try again."));
     }
   };
 
@@ -797,7 +833,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Edit text request failed:", err);
       resetRetryFlowState();
-      alert("Failed to update this request. Please try again.");
+      showErrorToast(getErrorMessage(err, "Failed to update this request. Please try again."));
     }
   };
 
@@ -860,7 +896,7 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Edit image request failed:", err);
       resetRetryFlowState();
-      alert("Failed to update this image request. Please try again.");
+      showErrorToast(getErrorMessage(err, "Failed to update this image request. Please try again."));
     }
   };
 
@@ -883,6 +919,20 @@ export default function Dashboard() {
 
   return (
     <div className="chat-layout" onClick={handleOverlayClick}>
+      {errorToast && (
+        <div className="dashboard-error-toast" role="alert" aria-live="assertive">
+          <span className="dashboard-error-toast__icon">⚠</span>
+          <span className="dashboard-error-toast__message">{errorToast}</span>
+          <button
+            className="dashboard-error-toast__close"
+            onClick={() => setErrorToast("")}
+            aria-label="Close error notification"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <DashboardSidebar
         sidebarOpen={sidebarOpen}
         handleNewChat={handleNewChat}
