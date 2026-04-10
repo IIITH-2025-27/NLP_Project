@@ -77,25 +77,32 @@ Frontend runs at `http://127.0.0.1:5173`.
 
 Note: Frontend uses Node.js/npm; still start from the same project root and keep `.venv` active for consistency across project workflows.
 
-## Evaluation matrix 
+## Evaluation matrix
 
-We evaluate lyric quality using the **REDS** framework:
+We evaluate generated lyrics using **PHREM**.
 
-| Component | What it measures | Typical signal |
-|-----------|------------------|----------------|
-| **R - Rhythm & Rhyme** | Line-level rhythm consistency and rhyme quality | Better flow and musicality |
-| **E - Emotional Alignment** | How well generated lyrics match the detected emotion | Emotion-faithful output |
-| **D - Distinctiveness** | Diversity of generated text (lower repetition, richer phrasing) | Higher creativity |
-| **S - Semantic Coherence** | Meaningful continuity across lines/verses | Better readability and sense |
+### PHREM Components
 
-### How to read REDS
+| Component | Full Name | Purpose |
+|-----------|-----------|---------|
+| **PPFS** | Phonetic Pattern Flow Score | Measures phonetic smoothness/flow across word transitions |
+| **RSFS** | Rhythmic Structure Flow Score | Measures line-level rhythm consistency (length + stress pattern) |
+| **EAS** | Emotion Arc Score | Measures emotional coherence across lyric lines |
+| **HQCS** | Hook Quality Catchiness Score | Measures hook repetition quality with diversity balance |
+| **RCS** | Rhyme Consistency Score | Measures rhyme similarity across adjacent line endings |
+| **MCS** | Motif Consistency Score | Measures semantic motif consistency using sentence embeddings |
+| **DPS** | Degeneracy Penalty Score | Penalizes repetitive/degenerate token usage |
+| **LP** | Length Penalty | Penalizes very short lyrics |
 
-1. Each component is scored independently.
-2. Higher score means better quality for that dimension.
-3. Final REDS score is the weighted sum of R, E, D, and S used in the experiment setup.
+### Final PHREM Formula
 
-In short:
-- **R** checks musical structure,
-- **E** checks emotional correctness,
-- **D** checks novelty,
-- **S** checks meaning and consistency.
+The implemented weighted score is:
+
+`PHREM = (0.12*PPFS + 0.13*RSFS + 0.22*EAS + 0.13*HQCS + 0.10*RCS + 0.20*MCS + 0.10*DPS) * LP`
+
+### How to read PHREM
+
+1. Each sub-score is normalized to a quality range (higher is better).
+2. Weighted aggregation gives the core quality score.
+3. Length penalty (`LP`) down-weights outputs that are too short.
+4. Higher final PHREM indicates better rhythmic, emotional, semantic, and structural lyric quality.
