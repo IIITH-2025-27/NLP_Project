@@ -226,11 +226,11 @@ def tokenize_lines(lyrics):
 # LOAD MODEL
 # =========================
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME).to(DEVICE)
-model.eval()
+emotion_tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+emotion_model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME).to(DEVICE)
+emotion_model.eval()
 
-GOEMOTIONS_LABELS = model.config.id2label
+GOEMOTIONS_LABELS = emotion_model.config.id2label
 
 # =========================
 # GOEMOTIONS → FER MAPPING
@@ -278,7 +278,7 @@ def predict_emotions_batch(lines, batch_size=8):
     for i in range(0, len(lines), batch_size):
         batch = lines[i:i+batch_size]
 
-        inputs = tokenizer(
+        inputs = emotion_tokenizer(
             batch,
             padding=True,
             truncation=True,
@@ -286,7 +286,7 @@ def predict_emotions_batch(lines, batch_size=8):
         ).to(DEVICE)
 
         with torch.no_grad():
-            outputs = model(**inputs)
+            outputs = emotion_model(**inputs)
             probs = torch.softmax(outputs.logits, dim=-1)
 
         all_probs.extend(probs.cpu().numpy())
@@ -562,6 +562,22 @@ class degeneracy_penality_score:
 
         return float(np.exp(-self.strength * ratio))
 
+class length_penalty_score:
+    def __init__(self, min_lines=8, steepness=2.0):
+        self.min_lines = min_lines
+        self.steepness = steepness
+
+    def compute(self, lyrics):
+        lines = get_lines(lyrics)
+        n = len(lines)
+
+        if n >= self.min_lines:
+            return 1.0  # no penalty
+
+        # Smooth penalty that drops hard for very short lyrics
+        ratio = n / self.min_lines
+        return float(ratio ** self.steepness)
+
 class PHREM:
     def __init__(self, alpha_ppfs = 0.12, beta_rsfs = 0.13, gamma_eas = 0.22, delta_hqcs = 0.13, eta_rcs = 0.1, theta_mcs = 0.2, pi_dps= 0.1):
         self.alpha = alpha_ppfs
@@ -571,6 +587,7 @@ class PHREM:
         self.eta = eta_rcs
         self.theta = theta_mcs
         self.pi = pi_dps
+        
 
         self.ppfs = phonetic_pattern_flow_score()
         self.rsfs = rhythmic_structure_flow_score()
@@ -579,6 +596,7 @@ class PHREM:
         self.rhyme = rhyme_consistency_score()
         self.mcs = motif_consistency_score()
         self.dp = degeneracy_penality_score()
+        self.lp = length_penalty_score()
 
     def compute(self, lyrics):
         ppfs = self.ppfs.compute(lyrics)
@@ -588,6 +606,7 @@ class PHREM:
         rhyme = self.rhyme.compute(lyrics)
         mcs = self.mcs.compute(lyrics)
         dp = self.dp.compute(lyrics)
+        lp = self.lp.compute(lyrics)
 
         final_score = (
             self.alpha * ppfs +
@@ -598,5 +617,5 @@ class PHREM:
             self.theta * mcs + 
             self.pi*dp
         )
-
+        final_score = final_score * lp 
         return final_score
