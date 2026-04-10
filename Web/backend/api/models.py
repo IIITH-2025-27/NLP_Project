@@ -11,7 +11,7 @@ Categories:
 """
 
 from pydantic import BaseModel, field_validator, EmailStr
-from typing import Optional
+from typing import Optional, Literal
 
 class SignupRequest(BaseModel):
     name: str
@@ -156,9 +156,18 @@ class UpdateChatRequest(BaseModel):
 
 class CreateMessageRequest(BaseModel):
     content: str
-    message_type: str  # 'user' or 'assistant'
-    input_type: Optional[str] = None  # 'text' or 'image' for user messages
+    message_type: Literal['user', 'assistant']
+    input_type: Literal['text', 'image']
     image_preview: Optional[str] = None  # Base64 image preview URL
     emotion: Optional[dict] = None  # For assistant messages
     lyrics: Optional[str] = None  # For assistant messages
     preprocessed_image: Optional[str] = None  # Base64 preprocessed image for face detection
+
+
+class UpdateMessageRequest(BaseModel):
+    content: Optional[str] = None
+    input_type: Optional[Literal['text', 'image']] = None
+    image_preview: Optional[str] = None
+    emotion: Optional[dict] = None
+    lyrics: Optional[str] = None
+    preprocessed_image: Optional[str] = None

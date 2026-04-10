@@ -197,6 +197,12 @@ const apiService = {
       body: JSON.stringify(messageData),
     }),
 
+  updateMessage: (messageId, messageData) =>
+    request(`/messages/${messageId}`, {
+      method: "PUT",
+      body: JSON.stringify(messageData),
+    }),
+
   deleteMessage: (messageId) =>
     request(`/messages/${messageId}`, {
       method: "DELETE",

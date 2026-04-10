@@ -13,7 +13,7 @@ https://drive.google.com/drive/folders/1amWTLh-jdjT_Hg1m_IgyjQzHdwAadYAf?usp=sha
 ```
 
 ---
-## For Text to Emotion    
+## Model : Text to Emotion [Pre-built]
 
  A Hugging Face pre built model(roberta) used.
  ```bash
@@ -26,13 +26,23 @@ https://drive.google.com/drive/folders/1amWTLh-jdjT_Hg1m_IgyjQzHdwAadYAf?usp=sha
 The cropped face is resized and fed into the ResNet50-based emotion recognition model.
 used throug library(from facenet_pytorch import MTCNN)
 
-## For Image to Emotion
-above trained model (accurracy : 67%) on Resnet50 deplyed on huggingface.
+## Model : Image to Emotion
+Below trained model (accurracy : 67%) on Resnet50 deplyed on huggingface.
 ```bash
 Model 
 https://huggingface.co/IIITH-25-27/resnet50_image_to_emotion_acc_67
 
 Deployed URL 
-https://huggingface.co/spaces/IIITH-25-27/LyricMind_Models
+https://huggingface.co/spaces/IIITH-25-27/image_to_emotion
+```
+
+## Model : Emotion to Lyrics
+Below trained model deplyed on huggingface.
+```bash
+Model 
+https://huggingface.co/IIITH-25-27/Spotify_gpt2_medium
+
+Deployed URL 
+https://huggingface.co/spaces/IIITH-25-27/lyrics_Generator_for_emotion
 ```
 

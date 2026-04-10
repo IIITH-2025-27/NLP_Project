@@ -7,7 +7,7 @@ https://www.kaggle.com/datasets/vikashkumar999/facial-expression-recognition
 
 #### Genius Dataset
 ```bash
-https://www.kaggle.com/datasets/vikashkumar999/genius-dataset
+https://www.kaggle.com/datasets/carlosgdcj/genius-song-lyrics-with-language-information
 ```
 
 #### Spotify Dataset
