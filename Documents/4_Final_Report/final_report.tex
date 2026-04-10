@@ -54,7 +54,7 @@ emotion to guide lyric generation. To maintain lyrical structure, rhythm-aware
 constrained decoding is applied to enforce syllable counts and rhyme patterns 
 during generation.
 
-We further introduce \textbf{REDS}, a composite evaluation metric designed 
+We further introduce \textbf{PHREM}, a composite evaluation metric designed 
 for lyric generation that measures rhythmic consistency, emotional alignment, 
 lexical diversity, and semantic coherence. MERGE provides a framework for 
 exploring emotion-conditioned lyric generation while preserving structural 
@@ -295,6 +295,7 @@ The created dataset is being hosted on kaggle\cite{author2025}.
 
 \subsection{Lyric Dataset and Emotion Labeling}
 Each song is segmented into individual lyric lines. Let a song contain $n$ lyric lines, where the index of a line is denoted by
+\vspace{-0.25cm}
 \[
 i \in \{1,2,\dots,n\}.
 \]
@@ -378,16 +379,6 @@ where $\mathbf{E}_{\text{song}}^{(k)}$ denotes the score of emotion category $k$
 % ============================================================
 \section{Methodology}
 % ============================================================
-
-This work proposes an end-to-end multimodal framework that connects 
-facial emotion recognition with emotion-conditioned and 
-rhythm-aware lyric generation. The system
-(as shown in Figure \ref{fig:merge_pipeline}) first detects 
-emotional states from facial inputs and then uses these signals to 
-guide lyric generation while enforcing linguistic and rhythmic 
-constraints such as rhyme patterns and syllable structure.
-
-
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\linewidth]{diagram1.pdf}
@@ -401,6 +392,16 @@ constraints such as rhyme patterns and syllable structure.
 \end{figure}
 
 \vspace{-0.3cm}
+This work proposes an end-to-end multimodal framework that connects 
+facial emotion recognition with emotion-conditioned and 
+rhythm-aware lyric generation. The system
+(as shown in Figure \ref{fig:merge_pipeline}) first detects 
+emotional states from facial inputs and then uses these signals to 
+guide lyric generation while enforcing linguistic and rhythmic 
+constraints such as rhyme patterns and syllable structure.
+
+
+
 
 \subsection{Facial Emotion Conditioning}
 
@@ -484,162 +485,88 @@ By integrating these constraints directly into the decoding process rather than 
 
 
 % ============================================================
-\section{Evaluation Metric: REDS}
+\section{Evaluation Metric: PHREM}
 % ============================================================
 
+Existing metrics (BLEU, ROUGE) measure lexical overlap but fail to capture lyrical essence: phonetic flow, emotional continuity, rhythmic structure, hook catchiness, and semantic coherence. We introduce \textbf{PHREM} (Phonetic Rhythm Emotion Metric), a composite evaluation framework designed specifically for emotion-conditioned lyric quality assessment.
 
-Evaluating creative language generation is challenging because traditional metrics such as BLEU or ROUGE primarily measure lexical overlap and often fail to capture important qualities of lyrics such as emotional alignment, rhythmic structure, and semantic coherence. To address this limitation, we introduce a composite evaluation metric called \textbf{REDS}, designed specifically for emotion-conditioned lyric generation.
+PHREM integrates seven complementary dimensions, each capturing distinct aspects of lyric quality. The metric is computed as a weighted sum:
+\begin{equation}
+\text{PHREM} = \sum_{i=1}^{7} \alpha_i c_i
+\end{equation}
+where weights are: $\alpha_{\text{ppfs}}=0.12$, $\alpha_{\text{rsfs}}=0.13$, $\alpha_{\text{eas}}=0.22$, $\alpha_{\text{hqcs}}=0.13$, $\alpha_{\text{rcs}}=0.10$, $\alpha_{\text{mcs}}=0.20$, $\alpha_{\text{dps}}=0.10$. All components are normalized to $[0,1]$, ensuring $\text{PHREM} \in [0,1]$.
 
-REDS evaluates generated lyrics across four complementary dimensions: rhythmic consistency, emotional alignment, lexical diversity, and semantic coherence.
+\paragraph{PPFS: Phonetic Pattern Flow Score.}
+PPFS evaluates the smoothness and naturalness of lyric delivery at the phoneme level. High-quality lyrics exhibit smooth transitions between phonemes without jarring vowel-consonant shifts or stress disruptions. For adjacent phonemes $p_i$ and $p_{i+1}$:
 
-\subsection{REDS Evaluation Metric}
+\begin{equation}
+c(p_i, p_{i+1}) = 0.6 \cdot \mathbb{1}[\text{v}(p_i) \neq \text{v}(p_{i+1})] + 0.4 \cdot |s_i - s_{i+1}|
+\end{equation}
 
-Let a generated lyric consist of $n$ lines
+where $\mathbb{1}[\cdot]$ indicates vowel-consonant transition (penalty 0.6), and $|s_i - s_{i+1}|$ captures stress mismatch (weight 0.4). The final score is $\text{PPFS} = \exp(-\bar{c})$, where $\bar{c}$ is average transition cost. This ensures smooth phonetic flow scores near 1.0 for natural-sounding lyrics.
 
-\[
-L = {l_1, l_2, \dots, l_n}.
-\]
+\paragraph{RSFS: Rhythmic Structure Flow Score.}
+RSFS measures rhythmic consistency by evaluating syllable uniformity and stress pattern regularity across lyric lines. Songs with consistent syllable counts and predictable stress patterns are easier to sing and more memorable. Syllable consistency relative to median line length:
 
-The REDS score is computed as a weighted combination of four components:
+\begin{equation}
+R_s = 1 - \frac{1}{n} \sum_{i=1}^{n} \frac{|s_i - \text{med}(s)|}{\text{med}(s)}
+\end{equation}
 
-\[
-\text{REDS} =
-\alpha R + \beta E + \gamma D + \delta S
-\]
+Stress consistency ($R_{\text{stress}}$) compares consecutive line stress sequences. The final score combines both: $\text{RSFS} = 0.7 R_s + 0.3 R_{\text{stress}}$, prioritizing syllable uniformity while acknowledging stress patterns.
 
-subject to the normalization constraint
+\paragraph{EAS: Emotion Arc Score.}
+EAS measures emotional continuity and coherence across the lyric sequence. For each line $i$, the GoEmotions classifier (mapped to 6 FER classes) produces normalized emotion vector $\mathbf{q}_i \in [0,1]^6$. Transitions between consecutive lines use Jensen-Shannon divergence:
 
-\[
-\alpha + \beta + \gamma + \delta = 1.
-\]
+\begin{equation}
+d_i = \frac{1}{2}\left[\text{KL}(\mathbf{q}_i \| \mathbf{m}) + \text{KL}(\mathbf{q}_{i+1} \| \mathbf{m})\right]
+\end{equation}
 
-Here $R$, $E$, $D$, and $S$ denote rhythm consistency, emotional alignment, lexical diversity, and semantic coherence respectively, while $\alpha$, $\beta$, $\gamma$, and $\delta$ represent weighting coefficients.
+where $\mathbf{m} = \frac{1}{2}(\mathbf{q}_i + \mathbf{q}_{i+1})$. Each transition is weighted by emotional intensity $w_i = 1 - q_i^{\text{neutral}}$, downweighting neutral lines. Final score: $\text{EAS} = \exp(-\bar{d}_w)$.
 
-\subsubsection{Rhythm and Rhyme Consistency ($R$)}
+\paragraph{HQCS: Hook Quality and Catchiness Score.}
+HQCS identifies and rewards repeated $n$-gram patterns (hooks) that enhance memorability and catchiness. Hooks are linguistic patterns listeners recognize and remember (e.g., recurring refrains). We extract all 3-grams and count those appearing multiple times. HQCS combines three metrics:
 
-Rhythmic structure is evaluated using syllable counts and rhyme patterns derived from phonetic representations in the CMU Pronouncing Dictionary \cite{cmudict}. Let $s_i$ denote the number of syllables in lyric line $l_i$, and let $s^*$ denote the target syllable count for the desired rhythmic pattern.
+\begin{equation}
+\text{HQCS} = 0.4 \cdot \text{sal} + 0.3 \cdot \text{cov} + 0.3 \cdot \text{flow}
+\end{equation}
 
-The syllable consistency score is defined as
+where salience = max hook frequency / total $n$-grams, coverage = sum hook frequencies / total $n$-grams, and flow = mean(PPFS, RSFS). A diversity penalty balances hook repetition against monotony.
 
-\[
-R_{\text{syllable}} =
-1 -
-\frac{1}{n}
-\sum_{i=1}^{n}
-\frac{|s_i - s^*|}{s^*}.
-\]
+\paragraph{RCS: Rhyme Consistency Score.}
+RCS evaluates rhyme quality by comparing phonetic endings of consecutive line-final words. Rhyme quality is determined from the last stressed vowel onward using CMU Pronouncing Dictionary. Similarity between consecutive rhyme patterns is computed by matching phonemes backward from the end. RCS is the mean similarity across all consecutive line pairs.
 
-Rhyme consistency is evaluated by checking whether each line satisfies the expected rhyme scheme. Let
+\paragraph{MCS: Motif Consistency Score.}
+MCS measures semantic coherence and thematic consistency using pre-trained sentence embeddings. High-quality lyrics maintain topical coherence across lines. MCS balances local and global consistency:
 
-\[
-r_i =
-\begin{cases}
-    1 & \text{if line } l_i \text{ satisfies the rhyme scheme}, \\
-    0 & \text{otherwise}.
-\end{cases}
-\]
+\begin{equation}
+\text{MCS} = 0.7 \cdot L + 0.3 \cdot G
+\end{equation}
 
-The final rhythm score combines both syllable and rhyme correctness:
+where $L$ = mean cosine similarity of consecutive lines (local coherence), and $G$ = mean similarity of sampled non-adjacent pairs (global thematic consistency).
 
-\[
-R =
-\frac{1}{2}
-\left(
-R_{\text{syllable}}
-+
-\frac{1}{n}
-\sum_{i=1}^{n} r_i
-\right).
-\]
+\paragraph{DPS: Degeneracy Penalty Score.}
+DPS penalizes excessive lexical repetition, indicating degenerate output lacking diversity. The penalty is:
 
-\subsubsection{Emotional Alignment ($E$)}
+\begin{equation}
+\text{DPS} = \exp(-3.0 \cdot r)
+\end{equation}
 
-Emotional alignment measures how well the generated lyrics reflect the intended conditioning emotion. An independent emotion classifier trained on the GoEmotions dataset \cite{demszky2020goemotions} is used to estimate the emotion distribution of the generated text.
+where $r = \frac{\max \text{ word frequency}}{\text{total words}}$. Low repetition yields DPS $\approx 1.0$; high repetition decays exponentially. This rewards lexical diversity while allowing natural reuse.
 
-Let
+\paragraph{LPS: Length Penalty Score.}
+LPS ensures generated lyrics have sufficient length and substance. Very short lyrics often lack narrative depth or emotional development. The penalty is:
 
-\[
-\mathbf{p} =
-[p_1, p_2, \dots, p_K]
-\]
+\begin{equation}
+\text{LPS} = \begin{cases} 1.0 & \text{if } n \geq 8 \\ \left(\frac{n}{8}\right)^{2.0} & \text{otherwise} \end{cases}
+\end{equation}
 
-denote the predicted probability distribution over the emotion set
+where $n$ is the number of lines. Lyrics with 8 or more lines receive no penalty. Shorter lyrics face exponential penalty (exponent 2.0), strongly discouraging very brief outputs while allowing some flexibility for shorter compositions. The final PHREM score is adjusted via multiplication:
 
-\[
-\mathcal{E} =
-{\text{angry}, \text{fear}, \text{happy}, \text{sad}, \text{surprise}, \text{neutral}}.
-\]
+\begin{equation}
+\text{PHREM}_{\text{final}} = \text{PHREM} \times \text{LPS}
+\end{equation}
 
-If the intended emotion is $e^*$, the emotional alignment score is defined as
-
-\[
-E = p_{e^*}.
-\]
-
-\subsubsection{Lexical Distinctiveness ($D$)}
-
-Lexical diversity is measured using distinct n-gram statistics. Let $U_k$ denote the number of unique $k$-grams in the generated lyrics and let $T_k$ denote the total number of $k$-grams.
-
-The distinct-$k$ score is defined as
-
-\[
-\text{Distinct}_k =
-\frac{U_k}{T_k}.
-\]
-
-The lexical diversity score is computed as
-
-\[
-D =
-\frac{\text{Distinct}_1 + \text{Distinct}_2}{2}.
-\]
-
-\subsubsection{Semantic Coherence ($S$)}
-
-Semantic coherence measures the topical consistency between consecutive lyric lines. Let $\mathbf{v}_i$ denote the sentence embedding of line $l_i$ obtained using a pretrained sentence embedding model.
-
-The semantic coherence score is defined as the average cosine similarity between consecutive lines:
-
-\[
-S =
-\frac{1}{n-1}
-\sum_{i=1}^{n-1}
-\frac{\mathbf{v}*i \cdot \mathbf{v}*{i+1}}
-{|\mathbf{v}*i| |\mathbf{v}*{i+1}|}.
-\]
-
-\subsubsection{Normalization}
-
-Each component score is normalized to the interval
-
-\[
-R, E, D, S \in [0,1].
-\]
-
-This ensures that the evaluation components operate on comparable scales and prevents any single component from dominating the overall metric.
-
-Consequently, the REDS metric is bounded by
-
-\[
-0 \le \text{REDS} \le 1.
-\]
-
-\subsubsection{Weight Optimization}
-
-The weighting coefficients $\alpha$, $\beta$, $\gamma$, and $\delta$ determine the relative importance of each evaluation component. Rather than selecting these weights manually, they are estimated using correlation-based optimization with human evaluation scores.
-
-Let $H$ denote the vector of human evaluation ratings for generated lyrics. The optimal weights are obtained by maximizing the correlation between REDS scores and human judgments:
-
-\[
-(\alpha,\beta,\gamma,\delta) = 
-\arg\max
-\rho(\text{REDS}, H),
-\]
-
-where $\rho(\cdot)$ denotes Spearman's rank correlation coefficient.
-
-This optimization ensures that the REDS metric aligns with human judgments of lyric quality.
-Since this work is currently in progress, the REDS metric is proposed as the evaluation framework for lyric generation. The final weighting parameters $\alpha$, $\beta$, $\gamma$, and $\delta$ will be estimated using correlation with human evaluation scores during the final stage of the project.
+All components operate on $[0,1]$ scales, making PHREM directly interpretable as a lyric quality score. The weighted combination reflects relative importance: emotional control (EAS, 0.22) and semantic coherence (MCS, 0.20) dominate overall assessment.
 
 
 % ============================================================
@@ -796,7 +723,7 @@ and reduced mislabeling of anger-adjacent content as sadness.
 FER accuracy is upper-bounded by the noise inherent in
 crowd-sourced annotation of FER-2013.  GPT-2 (117M
 parameters) may not capture long-range lyric dependencies
-as effectively as larger autoregressive models.  The REDS
+as effectively as larger autoregressive models.  The PHREM
 metric weights remain preliminary; final calibration requires
 human evaluation.
 
@@ -818,7 +745,7 @@ emotion recognition.  Key contributions include a scalable
 GoEmotions-to-FER lyric annotation pipeline, an EfficientNet-B3
 $+$ DenseNet-121 ensemble FER model trained on three unified
 datasets, GPT-2 fine-tuning with emotion control tokens, and
-the REDS composite evaluation metric.
+the PHREM composite evaluation metric.
 
 Experimental results demonstrate that facial emotion signals
 can serve as effective conditioning inputs for lyric generation,
