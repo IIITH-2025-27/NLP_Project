@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from constants import (
     EMOTIONS, 
+    CLASS_NAMES,
     EMOTION_META,
     GRADIO_IMAGE_EMOTION_SPACE,
     GRADIO_IMAGE_EMOTION_API_NAME,
@@ -97,16 +98,44 @@ def predict_emotion_from_image(image_bytes: bytes) -> dict:
             )
             
             # Handle different response types
+            pred_index = None
             if isinstance(result, str):
-                detected_emotion = result.strip()
+                result_text = result.strip()
+                if result_text.isdigit():
+                    pred_index = int(result_text)
+                    if 0 <= pred_index < len(CLASS_NAMES):
+                        detected_emotion = CLASS_NAMES[pred_index]
+                    else:
+                        raise ValueError(f"Prediction index out of range: {pred_index}")
+                else:
+                    detected_emotion = result_text
             elif isinstance(result, dict):
                 # If result is a dictionary, try to extract emotion
-                detected_emotion = result.get('emotion', result.get('label', 'Neutral'))
+                if 'index' in result and isinstance(result['index'], int):
+                    pred_index = int(result['index'])
+                    if 0 <= pred_index < len(CLASS_NAMES):
+                        detected_emotion = CLASS_NAMES[pred_index]
+                    else:
+                        raise ValueError(f"Prediction index out of range: {pred_index}")
+                else:
+                    detected_emotion = result.get('emotion', result.get('label', 'Neutral'))
             elif isinstance(result, (list, tuple)) and len(result) > 0:
                 # If result is a list/tuple, take the first element
-                detected_emotion = str(result[0]).strip()
+                first_item = result[0]
+                if isinstance(first_item, int):
+                    pred_index = first_item
+                    if 0 <= pred_index < len(CLASS_NAMES):
+                        detected_emotion = CLASS_NAMES[pred_index]
+                    else:
+                        raise ValueError(f"Prediction index out of range: {pred_index}")
+                else:
+                    detected_emotion = str(first_item).strip()
             else:
                 raise ValueError(f"Unexpected result type: {type(result)}, value: {result}")
+
+            if pred_index is not None:
+                print(f"Index: {pred_index}")
+                print(f"Label: {CLASS_NAMES[pred_index]}")
             
             # Ensure emotion is properly formatted
             detected_emotion = detected_emotion.strip()

@@ -5,34 +5,81 @@ import torch
 import io
 import os
 import tempfile
-import numpy as np
 import base64
 
 # device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Face detector
-# Keep raw pixel output (no post-process normalization) so downstream
-# preprocessing and UI previews use stable, natural-looking intensities.
-mtcnn = MTCNN(keep_all=False, device=device, post_process=False)
+# keep_all=False ensures we only keep a single face crop per image.
+mtcnn = MTCNN(
+    image_size=224,
+    margin=20,
+    keep_all=False,
+    device=device,
+    post_process=True,
+)
 
-# Transform for ResNet - MUST match training pipeline exactly
-# Training used: Resize -> Grayscale -> ToTensor -> Normalize
+# Inference transform must match the new vision model input format:
+# RGB 224x224 -> ToTensor -> ImageNet normalization.
 inference_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.Grayscale(num_output_channels=3),  # CRITICAL: Convert to 3-channel grayscale like training
     transforms.ToTensor(),
     transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],  # ImageNet normalization
+        mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225]
     )
 ])
 
+
+def _load_image(image_input):
+    """Load supported image input types into an RGB PIL image."""
+    if isinstance(image_input, bytes):
+        return Image.open(io.BytesIO(image_input)).convert("RGB")
+    if isinstance(image_input, (str, os.PathLike)):
+        return Image.open(image_input).convert("RGB")
+    if isinstance(image_input, Image.Image):
+        return image_input.convert("RGB")
+    raise ValueError(f"Unsupported image input type: {type(image_input)}")
+
+
+def _extract_face_pil(image_input):
+    """Detect one face and return a stable 224x224 RGB crop from original pixels."""
+    img = _load_image(image_input)
+
+    boxes, probs = mtcnn.detect(img)
+    if boxes is None or len(boxes) == 0:
+        raise ValueError("No face detected.")
+
+    # Pick the highest-confidence face, then crop from the original image.
+    best_idx = int(probs.argmax()) if probs is not None else 0
+    x1, y1, x2, y2 = boxes[best_idx]
+
+    # Add a small context margin around detected face for robustness.
+    w = x2 - x1
+    h = y2 - y1
+    margin = 0.10
+    x1 -= w * margin
+    y1 -= h * margin
+    x2 += w * margin
+    y2 += h * margin
+
+    # Clamp to image bounds.
+    img_w, img_h = img.size
+    x1 = max(0, int(round(x1)))
+    y1 = max(0, int(round(y1)))
+    x2 = min(img_w, int(round(x2)))
+    y2 = min(img_h, int(round(y2)))
+
+    if x2 <= x1 or y2 <= y1:
+        raise ValueError("No face detected.")
+
+    face_img = img.crop((x1, y1, x2, y2)).resize((224, 224), Image.BILINEAR)
+    return face_img
+
 def preprocess_image(image_input):
     """
     Preprocess image for emotion detection model.
-    Detects face, crops, and resizes to 224x224.
-    CRITICAL: Applies grayscale conversion to match training pipeline.
+    Detects face, keeps only face-containing inputs, and outputs normalized tensor.
     
     Args:
         image_input: Can be either:
@@ -43,49 +90,15 @@ def preprocess_image(image_input):
     Returns:
         torch.Tensor: Preprocessed face tensor of shape (1, 3, 224, 224)
     """
-    # Handle different input types
-    if isinstance(image_input, bytes):
-        img = Image.open(io.BytesIO(image_input)).convert("RGB")
-    elif isinstance(image_input, (str, os.PathLike)):
-        img = Image.open(image_input).convert("RGB")
-    elif isinstance(image_input, Image.Image):
-        img = image_input.convert("RGB")
-    else:
-        raise ValueError(f"Unsupported image input type: {type(image_input)}")
+    face_pil = _extract_face_pil(image_input)
 
-    # Detect and crop face
-    face = mtcnn(img)
-
-    if face is None:
-        # Raise error if no face detected
-        raise ValueError("No face detected in the image. Please provide an image with a clear, visible face.")
-    
-    # Convert MTCNN tensor output back to PIL Image for proper transforms.
-    # Depending on MTCNN settings/version, values can be in [-1, 1], [0, 1], or [0, 255].
-    face_np = face.permute(1, 2, 0).cpu().numpy().astype(np.float32)
-
-    min_val = float(face_np.min())
-    max_val = float(face_np.max())
-
-    if min_val >= -1.1 and max_val <= 1.1:
-        # Likely normalized range [-1, 1] or [0, 1]
-        if min_val < 0:
-            face_np = (face_np + 1.0) / 2.0
-        face_np = np.clip(face_np * 255.0, 0, 255)
-    else:
-        # Likely raw pixel range [0, 255]
-        face_np = np.clip(face_np, 0, 255)
-
-    face_np = face_np.astype(np.uint8)
-    face_pil = Image.fromarray(face_np)
-    
-    # Apply the inference transform (grayscale + normalization to match training)
+    # Apply model inference transform (RGB + normalization)
     face_tensor = inference_transform(face_pil)
     
     # Add batch dimension
     face_tensor = face_tensor.unsqueeze(0)
 
-    return face_tensor
+    return face_tensor.to(device)
 
 
 def preprocess_and_save_image(image_input, output_path=None):
@@ -102,29 +115,8 @@ def preprocess_and_save_image(image_input, output_path=None):
     Returns:
         str: Path to the saved preprocessed image
     """
-    # Get preprocessed face tensor from inference_transform (already normalized)
-    face_tensor = preprocess_image(image_input)
-    
-    # Denormalize for saving/API (reverse ImageNet normalization)
-    # face_tensor shape: (1, 3, 224, 224), already normalized
-    face = face_tensor.squeeze(0)  # (3, 224, 224)
-    
-    # Reverse normalization
-    denorm_means = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-    denorm_stds = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-    face = (face * denorm_stds + denorm_means)
-    
-    # Convert to numpy and PIL
-    face_np = face.permute(1, 2, 0).cpu().numpy()
-    
-    # Scale to 0-255
-    if face_np.max() <= 1.0:
-        face_np = (face_np * 255).astype(np.uint8)
-    else:
-        face_np = np.clip(face_np, 0, 255).astype(np.uint8)
-    
-    # Convert to PIL Image
-    face_img = Image.fromarray(face_np)
+    # Save a natural-looking face crop for external APIs/UI.
+    face_img = _extract_face_pil(image_input)
     
     # Save to output path or temp file
     if output_path is None:
@@ -148,29 +140,8 @@ def preprocess_and_get_base64(image_input):
     Returns:
         tuple: (preprocessed_image_path, base64_string)
     """
-    # Get preprocessed face tensor from inference_transform (already normalized)
-    face_tensor = preprocess_image(image_input)
-    
-    # Denormalize for display/API (reverse ImageNet normalization)
-    # face_tensor shape: (1, 3, 224, 224), already normalized
-    face = face_tensor.squeeze(0)  # (3, 224, 224)
-    
-    # Reverse normalization
-    denorm_means = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-    denorm_stds = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
-    face = (face * denorm_stds + denorm_means)
-    
-    # Convert to numpy
-    face_np = face.permute(1, 2, 0).cpu().numpy()
-    
-    # Scale to 0-255
-    if face_np.max() <= 1.0:
-        face_np = (face_np * 255).astype(np.uint8)
-    else:
-        face_np = np.clip(face_np, 0, 255).astype(np.uint8)
-    
-    # Convert to PIL Image
-    face_img = Image.fromarray(face_np)
+    # Return natural face crop for preview/API while preserving face-only filtering.
+    face_img = _extract_face_pil(image_input)
     
     # Save to temporary file for API
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
