@@ -1,18 +1,5 @@
 # Saved Models
 
-
-## Vision to Emotion Models
-
-## On Kaggle
-```bash
-https://www.kaggle.com/datasets/hritik567/fer-hypertuning-checkpoints
-```
-## On Google Drive
-```bash
-https://drive.google.com/drive/folders/1amWTLh-jdjT_Hg1m_IgyjQzHdwAadYAf?usp=sharing
-```
-
----
 ## Model : Text to Emotion [Pre-built]
 
  A Hugging Face pre built model(roberta) used.
@@ -22,15 +9,13 @@ https://drive.google.com/drive/folders/1amWTLh-jdjT_Hg1m_IgyjQzHdwAadYAf?usp=sha
 
 ## For Image preprocessing
 
-**MTCNN** (Multi-task Cascaded Convolutional Network) is used to detect and extract faces from uploaded images.  
-The cropped face is resized and fed into the ResNet50-based emotion recognition model.
-used throug library(from facenet_pytorch import MTCNN)
+Currently used preprocessing: detect the highest-confidence face with MTCNN(Multi-task Cascaded Convolutional Network), crop from original RGB image (with margin), resize to 224x224, normalize using ImageNet mean/std, and reject inputs where no face is detected.
 
 ## Model : Image to Emotion
-Below trained model (accurracy : 67%) on Resnet50 deplyed on huggingface.
+Below trained model (accurracy : 89%) on densenet_121 deplyed on huggingface.
 ```bash
 Model 
-https://huggingface.co/IIITH-25-27/resnet50_image_to_emotion_acc_67
+https://huggingface.co/IIITH-25-27/Image_to_emotion_model
 
 Deployed URL 
 https://huggingface.co/spaces/IIITH-25-27/image_to_emotion
@@ -40,7 +25,7 @@ https://huggingface.co/spaces/IIITH-25-27/image_to_emotion
 Below trained model deplyed on huggingface.
 ```bash
 Model 
-https://huggingface.co/IIITH-25-27/Spotify_gpt2_medium
+https://huggingface.co/IIITH-25-27/Emotion_to_lyrics_model
 
 Deployed URL 
 https://huggingface.co/spaces/IIITH-25-27/lyrics_Generator_for_emotion
