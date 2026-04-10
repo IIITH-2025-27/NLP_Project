@@ -30,7 +30,7 @@ used throug library(from facenet_pytorch import MTCNN)
 Below trained model (accurracy : 67%) on Resnet50 deplyed on huggingface.
 ```bash
 Model 
-https://huggingface.co/IIITH-25-27/resnet50_image_to_emotion_acc_67
+https://huggingface.co/IIITH-25-27/Image_to_emotion_model
 
 Deployed URL 
 https://huggingface.co/spaces/IIITH-25-27/image_to_emotion
@@ -40,7 +40,7 @@ https://huggingface.co/spaces/IIITH-25-27/image_to_emotion
 Below trained model deplyed on huggingface.
 ```bash
 Model 
-https://huggingface.co/IIITH-25-27/Spotify_gpt2_medium
+https://huggingface.co/IIITH-25-27/Emotion_to_lyrics_model
 
 Deployed URL 
 https://huggingface.co/spaces/IIITH-25-27/lyrics_Generator_for_emotion
