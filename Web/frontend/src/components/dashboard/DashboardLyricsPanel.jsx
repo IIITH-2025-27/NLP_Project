@@ -5,6 +5,7 @@ export default function DashboardLyricsPanel({
   selectedRequestIndex,
   handleRequestDropdownChange,
   loadingMessages,
+  isAnalyzing,
   requests,
   selectedRequest,
 }) {
@@ -15,7 +16,7 @@ export default function DashboardLyricsPanel({
   const confidence = selectedRequest?.emotion?.confidence;
 
   return (
-    <aside className="lyrics-panel">
+    <aside className={`lyrics-panel ${isAnalyzing ? "is-analyzing" : ""}`}>
       <div className="lyrics-panel-header">
         <label htmlFor="request-select" className="request-label">Select Request:</label>
         <select
@@ -23,7 +24,7 @@ export default function DashboardLyricsPanel({
           className="request-dropdown"
           value={selectedRequestIndex !== null ? selectedRequestIndex : ''}
           onChange={(e) => handleRequestDropdownChange(e.target.value)}
-          disabled={loadingMessages || requests.length === 0}
+          disabled={loadingMessages || isAnalyzing || requests.length === 0}
         >
           <option value="">Select a request...</option>
           {requests.map((_, index) => (
@@ -40,7 +41,7 @@ export default function DashboardLyricsPanel({
             <Loader size="md" text="Loading requests..." />
           </div>
         ) : selectedRequest ? (
-          <div className="lyrics-display">
+          <div className={`lyrics-display ${isAnalyzing ? "is-loading" : ""}`}>
             <div className="lyrics-emotion-compact">
               <span className="lyrics-emoji">{emotionEmoji}</span>
               <div className="lyrics-emotion-info">
@@ -60,6 +61,15 @@ export default function DashboardLyricsPanel({
                 emotion={emotionName}
               />
             </div>
+            {isAnalyzing && (
+              <div className="lyrics-loading-overlay" aria-live="polite">
+                <Loader size="md" text="Analyzing and generating lyrics..." />
+              </div>
+            )}
+          </div>
+        ) : isAnalyzing ? (
+          <div className="lyrics-empty">
+            <Loader size="md" text="Analyzing and generating lyrics..." />
           </div>
         ) : (
           <div className="lyrics-empty">

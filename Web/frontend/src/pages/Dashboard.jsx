@@ -988,6 +988,7 @@ export default function Dashboard() {
           selectedRequestIndex={selectedRequestIndex}
           handleRequestDropdownChange={handleRequestDropdownChange}
           loadingMessages={loadingMessages}
+          isAnalyzing={loading || Boolean(pendingUserMessage)}
           requests={requests}
           selectedRequest={selectedRequest}
         />
