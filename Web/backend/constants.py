@@ -13,13 +13,16 @@ Contains emotion configurations and model settings used in the backend
 # - Image emotion detection (Gradio API: IIITH-25-27/LyricMind_Models)
 # - Lyrics dataset mapping
 EMOTIONS = [
-    "Happy",
-    "Sad",
     "Angry",
     "Fear",
+    "Happy",
+    "Sad",
     "Surprise",
-    "Neutral"
+    "Neutral",
 ]
+
+# Class index order must match model training exactly.
+CLASS_NAMES = EMOTIONS
 
 # Note: The image emotion model (IIITH-25-27/LyricMind_Models) is trained to directly
 # output one of the 6 emotions above, so no mapping is required
@@ -75,8 +78,10 @@ GRADIO_IMAGE_EMOTION_API_NAME = "/predict"  # API endpoint name
 GRADIO_IMAGE_EMOTION_SPACE_URL = "https://iiith-25-27-image-to-emotion.hf.space"  # Direct URL
 
 # HF Space Configuration for Lyrics Generation
-HF_LYRIC_GEN_SPACE_URL = "https://iiith-25-27-lyrics-generator-for-emotion.hf.space/generate"  # Private HF Space
+# Gradio Space ID for lyric generation (used by gradio_client).
+HF_LYRIC_GEN_SPACE_URL = "IIITH-25-27/lyrics_Generator_for_emotion"
 LYRIC_GEN_MODEL_NAME = "LyricGen-v2"
-LYRIC_GEN_MAX_TOKENS = 100
-LYRIC_GEN_TEMPERATURE = 0.85
-LYRIC_GEN_TOP_P = 0.9
+LYRIC_GEN_MAX_WORDS = 120
+LYRIC_GEN_TEMPERATURE = 0.9
+LYRIC_GEN_TOP_K = 50
+LYRIC_GEN_TOP_P = 0.95

@@ -139,7 +139,8 @@ class EmotionRequest(BaseModel):
     @field_validator('emotion')
     @classmethod
     def validate_emotion(cls, v):
-        valid_emotions = ["Happy", "Sad", "Angry", "Fear", "Surprise", "Neutral"]
+        from constants import EMOTIONS
+        valid_emotions = EMOTIONS
         if v not in valid_emotions:
             raise ValueError(f'Emotion must be one of: {valid_emotions}')
         return v
