@@ -106,3 +106,31 @@ The implemented weighted score is:
 2. Weighted aggregation gives the core quality score.
 3. Length penalty (`LP`) down-weights outputs that are too short.
 4. Higher final PHREM indicates better rhythmic, emotional, semantic, and structural lyric quality.
+
+## Folder Structure
+
+```text
+NLP_Project/
+├── README.md                          # Main project documentation and run guide
+├── requirements.txt                   # Root Python dependencies
+├── final_report.pdf                   # Final project report document
+├── presentation.ppt                   # Project presentation slides
+├── Datasets/                          # Dataset notes and dataset links
+│   └── dataset_info.md                # Source URLs and dataset details
+├── Metric/                            # Evaluation metrics implementation
+│   └── evaluation_matric_phrem.py     # PHREM scoring code
+├── Models/                            # Training notebooks and saved model references
+│   ├── Notebooks/                     # NLP/vision training and experiment notebooks
+│   └── Saved_Models/                  # Model artifacts and deployed model links
+│       └── models.md                  # Model + deployment URLs
+├── Utility/                           # Setup guides and helper scripts
+└── Web/                               # Full-stack application
+	├── backend/                       # FastAPI backend (APIs, ML service, DB/auth)
+	└── frontend/                      # React + Vite frontend dashboard
+```
+
+## Note
+
+- All model links and deployed model URLs are available in `Models/Saved_Models/models.md`.
+- All dataset URLs are available in `Datasets/dataset_info.md`.
+
