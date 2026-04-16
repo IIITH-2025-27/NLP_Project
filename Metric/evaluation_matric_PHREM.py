@@ -80,17 +80,27 @@ def phoneme_features(p):
 # =========================
 # TRANSITION COST (PPFS CORE)
 # =========================
+    
+def transition_cost(s1, s2):
+    """
+    Role-based stress transition cost
+    Lower = better
+    """
 
-def transition_cost(p1, p2, weights):
-    f1, f2 = phoneme_features(p1), phoneme_features(p2)
+    # Perfect alternation (best flow)
+    if (s1 == 0 and s2 == 1) or (s1 == 1 and s2 == 0):
+        return 0.0
 
-    vowel_switch = int(f1["is_vowel"] != f2["is_vowel"])
-    stress_diff = abs(f1["stress"] - f2["stress"])
+    # Secondary stress involvement (soft transition)
+    if s1 == 2 or s2 == 2:
+        return 0.3
 
-    return (
-        weights["vowel"] * vowel_switch +
-        weights["stress"] * stress_diff
-    )
+    # Same stress repeated (boring / flat)
+    if s1 == s2:
+        return 0.6
+
+    # Harsh / unnatural transitions
+    return 1.0
 
 # =========================
 # 1. PPFS (PHONETIC FLOW)
@@ -98,11 +108,14 @@ def transition_cost(p1, p2, weights):
 
 class phonetic_pattern_flow_score:
     def __init__(self, weights=None):
+        # Only stress matters now (vowel penalty removed)
         self.weights = weights or {
-            "vowel": 0.6,
-            "stress": 0.4
+            "stress": 1.0
         }
 
+    # =========================
+    # Main compute
+    # =========================
     def compute(self, lyrics):
         words = tokenize(lyrics)
 
@@ -110,16 +123,22 @@ class phonetic_pattern_flow_score:
         for w in words:
             phonemes.extend(get_phonemes(w))
 
-        if len(phonemes) < 2:
+        # Extract only vowel phonemes (true rhythm units)
+        vowel_phonemes = [p for p in phonemes if is_vowel_phoneme(p)]
+
+        if len(vowel_phonemes) < 2:
             return 1.0
 
+        # Get stress sequence
+        stresses = [extract_stress(p) for p in vowel_phonemes]
+
+        # Compute transition costs
         costs = [
-            transition_cost(phonemes[i], phonemes[i+1], self.weights)
-            for i in range(len(phonemes) - 1)
+            transition_cost(stresses[i], stresses[i+1])
+            for i in range(len(stresses) - 1)
         ]
 
         avg_cost = np.mean(costs)
-
         return float(np.exp(-avg_cost))
 
 
@@ -128,17 +147,81 @@ class phonetic_pattern_flow_score:
 # =========================
 
 class rhythmic_structure_flow_score:
-    def __init__(self, w_length=0.7, w_stress=0.3):
+    def __init__(self, w_length=0.5, w_stress=0.3, w_alt=0.2):
         self.w_length = w_length
         self.w_stress = w_stress
+        self.w_alt = w_alt
 
-    def get_syllables_and_stress(self, phonemes):
-        syllables = []
-        for p in phonemes:
-            if p[-1].isdigit():  # vowel phoneme
-                syllables.append(int(p[-1]))  # store stress
-        return syllables
+    # -------------------------
+    # Extract stress sequence
+    # -------------------------
+    def get_stress_pattern(self, phonemes):
+        return [int(p[-1]) for p in phonemes if p[-1].isdigit()]
 
+    # -------------------------
+    # Normalize stress into roles
+    # 0 = weak, 1 = strong (1/2 merged)
+    # -------------------------
+    def normalize_stress(self, s):
+        return 0 if s == 0 else 1
+
+    # -------------------------
+    # Alternation quality (within a line)
+    # -------------------------
+    def alternation_score(self, pattern):
+        if len(pattern) < 2:
+            return 1.0
+
+        norm = [self.normalize_stress(s) for s in pattern]
+
+        good = 0
+        for i in range(len(norm) - 1):
+            if norm[i] != norm[i+1]:  # alternation
+                good += 1
+
+        return good / (len(norm) - 1)
+
+    # -------------------------
+    # Flexible pattern similarity
+    # -------------------------
+    def pattern_similarity(self, p1, p2):
+        if len(p1) == 0 or len(p2) == 0:
+            return 0.0
+
+        # Normalize stress (0 = weak, 1 = strong)
+        norm1 = [self.normalize_stress(s) for s in p1]
+        norm2 = [self.normalize_stress(s) for s in p2]
+
+        # -------------------------
+        # 1. Positional similarity (STRICT)
+        # -------------------------
+        min_len = min(len(norm1), len(norm2))
+        positional_matches = sum(1 for i in range(min_len) if norm1[i] == norm2[i])
+        positional_score = positional_matches / min_len
+
+        # -------------------------
+        # 2. LCS similarity (FLEXIBLE)
+        # -------------------------
+        dp = [[0] * (len(norm2) + 1) for _ in range(len(norm1) + 1)]
+
+        for i in range(1, len(norm1) + 1):
+            for j in range(1, len(norm2) + 1):
+                if norm1[i - 1] == norm2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                else:
+                    dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+
+        lcs_len = dp[-1][-1]
+        lcs_score = lcs_len / max(len(norm1), len(norm2))
+
+        # -------------------------
+        # 3. Weighted combination
+        # -------------------------
+        return 0.3 * positional_score + 0.7 * lcs_score
+
+    # -------------------------
+    # Main compute
+    # -------------------------
     def compute(self, lyrics):
         lines = get_lines(lyrics)
 
@@ -146,7 +229,8 @@ class rhythmic_structure_flow_score:
             return 1.0
 
         lengths = []
-        stress_patterns = []
+        patterns = []
+        alt_scores = []
 
         for line in lines:
             words = tokenize(line)
@@ -155,44 +239,49 @@ class rhythmic_structure_flow_score:
             for w in words:
                 phonemes.extend(get_phonemes(w))
 
-            syllables = self.get_syllables_and_stress(phonemes)
+            pattern = self.get_stress_pattern(phonemes)
 
-            if len(syllables) == 0:
+            if len(pattern) == 0:
                 continue
 
-            lengths.append(len(syllables))
-            stress_patterns.append(syllables)
+            lengths.append(len(pattern))
+            patterns.append(pattern)
+            alt_scores.append(self.alternation_score(pattern))
 
         if len(lengths) < 2:
             return 0.0
 
         # ----------------------
-        # Length consistency
+        # Length consistency (soft)
         # ----------------------
-        target = max(np.median(lengths), 1e-6)
-        deviations = [abs(l - target) / target for l in lengths]
-        length_score = 1 - np.mean(deviations)
+        target = np.median(lengths)
+        deviations = [abs(l - target) / (target + 1e-6) for l in lengths]
+
+        # softer penalty than v1
+        length_score = np.exp(-np.mean(deviations))
 
         # ----------------------
-        # Stress consistency
+        # Pattern similarity (not exact match)
         # ----------------------
-        stress_diffs = []
+        sims = []
+        for i in range(len(patterns) - 1):
+            sims.append(self.pattern_similarity(patterns[i], patterns[i+1]))
 
-        for i in range(len(stress_patterns) - 1):
-            p1, p2 = stress_patterns[i], stress_patterns[i+1]
+        stress_score = np.mean(sims) if sims else 1.0
 
-            min_len = min(len(p1), len(p2))
+        # ----------------------
+        # Alternation quality
+        # ----------------------
+        alt_score = np.mean(alt_scores)
 
-            diff = sum(abs(p1[j] - p2[j]) for j in range(min_len)) / min_len
-            stress_diffs.append(diff)
-
-        stress_score = 1 - np.mean(stress_diffs) if stress_diffs else 1.0
-
+        # ----------------------
+        # Final score
+        # ----------------------
         return (
             self.w_length * length_score +
-            self.w_stress * stress_score
+            self.w_stress * stress_score +
+            self.w_alt * alt_score
         )
-
 
 # =========================
 # GLOBAL CONFIG
@@ -297,11 +386,21 @@ def predict_emotions_batch(lines, batch_size=8):
 # EAS CLASS
 # =========================
 
-class emotion_arc_score:
-    def __init__(self, use_neutral_weight=True):
+class emotion_alignment_arc_score:
+    def __init__(self, w_align=0.7, w_arc=0.3, use_neutral_weight=True):
+        self.w_align = w_align
+        self.w_arc = w_arc
         self.use_neutral_weight = use_neutral_weight
 
+    # -------------------------
+    # Cosine similarity
+    # -------------------------
+    def cosine(self, a, b):
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8)
+
+    # -------------------------
     # Jensen-Shannon Divergence
+    # -------------------------
     def js_divergence(self, p, q):
         p = np.clip(p, 1e-8, 1)
         q = np.clip(q, 1e-8, 1)
@@ -313,52 +412,83 @@ class emotion_arc_score:
             np.sum(q * np.log(q / m))
         )
 
-    def compute(self, lyrics):
+    # -------------------------
+    # Main compute
+    # -------------------------
+    def compute(self, lyrics, target_emotion):
         lines = tokenize_lines(lyrics)
 
-        if len(lines) < 2:
-            return 1.0
+        if len(lines) == 0:
+            return 0.0
 
-        # Step 1: Emotion probabilities
+        # -------------------------
+        # Step 1: Emotion prediction
+        # -------------------------
         go_probs = predict_emotions_batch(lines)
 
+        # -------------------------
         # Step 2: Map to FER
+        # -------------------------
         fer_vectors = map_to_fer(go_probs)
 
+        # -------------------------
         # Step 3: Normalize
+        # -------------------------
         fer_vectors = normalize_fer(fer_vectors)
 
-        # Step 4: Neutral weighting
-        if self.use_neutral_weight:
-            neutral_idx = FER_LABELS.index("Neutral")
-            weights = 1.0 - fer_vectors[:, neutral_idx]
+        # -------------------------
+        # Step 4: Target vector
+        # -------------------------
+        target_idx = FER_LABELS.index(target_emotion)
+
+        target_vec = np.zeros(len(FER_LABELS))
+        target_vec[target_idx] = 1.0
+
+        # -------------------------
+        # Step 5: ALIGNMENT SCORE
+        # -------------------------
+        align_sims = [vec[target_idx] for vec in fer_vectors]
+        alignment_score = np.mean(align_sims)
+
+        # -------------------------
+        # Step 6: ARC SCORE (JSD)
+        # -------------------------
+        if len(fer_vectors) < 2:
+            arc_score = 1.0
         else:
-            weights = np.ones(len(fer_vectors))
+            if self.use_neutral_weight:
+                neutral_idx = FER_LABELS.index("Neutral")
+                weights = 1.0 - fer_vectors[:, neutral_idx]
+            else:
+                weights = np.ones(len(fer_vectors))
 
-        # Step 5: Compute transitions
-        distances = []
+            distances = []
 
-        for i in range(len(fer_vectors) - 1):
-            p = fer_vectors[i]
-            q = fer_vectors[i + 1]
+            for i in range(len(fer_vectors) - 1):
+                p = fer_vectors[i]
+                q = fer_vectors[i + 1]
 
-            d = self.js_divergence(p, q)
+                d = self.js_divergence(p, q)
 
-            w = (weights[i] + weights[i + 1]) / 2
-            distances.append(w * d)
+                w = (weights[i] + weights[i + 1]) / 2
+                distances.append(w * d)
 
-        if not distances:
-            return 1.0
+            avg_dist = np.mean(distances) if distances else 0.0
+            arc_score = float(np.exp(-avg_dist))
 
-        avg_dist = np.mean(distances)
+        # -------------------------
+        # Step 7: FINAL COMBINATION
+        # -------------------------
+        final_score = (
+            self.w_align * alignment_score +
+            self.w_arc * arc_score
+        )
 
-        # Step 6: Final score
-        return float(np.exp(-avg_dist))
-
+        return float(np.clip(final_score, 0.0, 1.0))
 
 class hook_quality_catchiness_score:
     def __init__(self, lambda1=0.4, lambda2=0.3, lambda3=0.3, 
-                 n=3, k=3.0, baseline=0.5, temp=1.0):
+                 n=3, k=3.0, baseline=0.5, temp=1.0, penality_exponent=0.5):
         self.l1 = lambda1
         self.l2 = lambda2
         self.l3 = lambda3
@@ -366,6 +496,7 @@ class hook_quality_catchiness_score:
         self.k = k
         self.baseline = baseline
         self.temp = temp
+        self.penality_exponent = penality_exponent
 
     def extract_ngrams(self, words):
         return [" ".join(words[i:i+self.n]) for i in range(len(words)-self.n+1)]
@@ -422,47 +553,109 @@ class hook_quality_catchiness_score:
             self.l3 * flow_quality
         )
 
-        # ----------------------
-        # SOFTMAX COMBINATION (YOUR IDEA)
-        # ----------------------
-        scores = np.array([base_score, diversity_penalty]) * 5
-        weights = self.softmax(scores)
-
-        final_score = weights[0] * base_score + weights[1] * diversity_penalty
+        final_score = base_score * (diversity_penalty ** self.penality_exponent)
 
         return np.clip(final_score, 0.0, 1.0)
 
 
-class rhyme_consistency_score:
-    def __init__(self):
-        pass
 
+class rhyme_consistency_score:
+    def __init__(self, max_syllables=3):
+        self.max_syllables = max_syllables
+
+    # -------------------------
+    # Get last word of line
+    # -------------------------
     def get_last_word(self, line):
         words = tokenize(line)
         return words[-1] if words else ""
 
-    def get_rhyme_part(self, phonemes):
-        # Find last stressed vowel
-        for i in range(len(phonemes)-1, -1, -1):
-            if phonemes[i][-1].isdigit():  # vowel
-                return phonemes[i:]
-        return phonemes  # fallback
+    # -------------------------
+    # Multisyllabic rhyme extraction
+    # -------------------------
+    def get_multisyllable_rhyme(self, phonemes):
+        vowel_indices = []
 
+        for i, p in enumerate(phonemes):
+            if p[-1].isdigit():
+                vowel_indices.append(i)
+
+        if not vowel_indices:
+            return phonemes
+
+        selected = vowel_indices[-self.max_syllables:]
+        start = selected[0]
+
+        return phonemes[start:]
+
+    # -------------------------
+    # Phoneme similarity (slant rhyme)
+    # -------------------------
+    def phoneme_similarity(self, a, b):
+        # Exact match
+        if a == b:
+            return 1.0
+
+        # Same phoneme ignoring stress (AA1 vs AA0)
+        if a[:-1] == b[:-1]:
+            return 0.8
+
+        return 0.0
+
+    # -------------------------
+    # Rhyme similarity (suffix-based)
+    # -------------------------
     def rhyme_similarity(self, p1, p2):
-        # Compare from end backwards
-        i, j = len(p1)-1, len(p2)-1
-        match = 0
+        i, j = len(p1) - 1, len(p2) - 1
+        score = 0.0
+        count = 0
 
         while i >= 0 and j >= 0:
-            if p1[i] == p2[j]:
-                match += 1
-            else:
+            sim = self.phoneme_similarity(p1[i], p2[j])
+
+            if sim == 0:
                 break
+
+            score += sim
+            count += 1
+
             i -= 1
             j -= 1
 
-        return match / max(len(p1), len(p2))
+        if count == 0:
+            return 0.0
 
+        return score / max(len(p1), len(p2))
+
+    # -------------------------
+    # Internal rhyme detection
+    # -------------------------
+    def internal_rhyme_score(self, line):
+        words = tokenize(line)
+
+        phoneme_list = []
+        for w in words:
+            ph = get_phonemes(w)
+            if ph:
+                phoneme_list.append(ph)
+
+        scores = []
+
+        for i in range(len(phoneme_list)):
+            for j in range(i + 1, len(phoneme_list)):
+                r1 = self.get_multisyllable_rhyme(phoneme_list[i])
+                r2 = self.get_multisyllable_rhyme(phoneme_list[j])
+
+                sim = self.rhyme_similarity(r1, r2)
+
+                if sim > 0.5:
+                    scores.append(sim)
+
+        return np.mean(scores) if scores else 0.0
+
+    # -------------------------
+    # Main compute
+    # -------------------------
     def compute(self, lyrics):
         lines = get_lines(lyrics)
 
@@ -470,6 +663,7 @@ class rhyme_consistency_score:
             return 0.0
 
         rhyme_parts = []
+        internal_scores = []
 
         for line in lines:
             word = self.get_last_word(line)
@@ -482,28 +676,43 @@ class rhyme_consistency_score:
             if not phonemes:
                 continue
 
-            rhyme = self.get_rhyme_part(phonemes)
+            rhyme = self.get_multisyllable_rhyme(phonemes)
             rhyme_parts.append(rhyme)
+
+            internal_scores.append(self.internal_rhyme_score(line))
 
         if len(rhyme_parts) < 2:
             return 0.0
 
-        scores = []
+        # -------------------------
+        # End rhyme consistency
+        # -------------------------
+        end_scores = []
 
         for i in range(len(rhyme_parts) - 1):
             sim = self.rhyme_similarity(
                 rhyme_parts[i],
-                rhyme_parts[i+1]
+                rhyme_parts[i + 1]
             )
-            scores.append(sim)
+            end_scores.append(sim)
 
-        return float(np.mean(scores))
+        end_score = np.mean(end_scores) if end_scores else 0.0
+
+        # -------------------------
+        # Internal rhyme score
+        # -------------------------
+        internal_score = np.mean(internal_scores) if internal_scores else 0.0
+
+        # -------------------------
+        # Final combination
+        # -------------------------
+        return 0.7 * end_score + 0.3 * internal_score
 
 
 mcs_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 class motif_consistency_score:
-    def __init__(self, alpha=0.7, global_sample_ratio=0.3):
+    def __init__(self, alpha=0.9, global_sample_ratio=0.1):
         self.alpha = alpha
         self.global_sample_ratio = global_sample_ratio
 
@@ -560,7 +769,10 @@ class degeneracy_penality_score:
 
         ratio = max_freq / len(words)
 
-        return float(np.exp(-self.strength * ratio))
+        ratio = (max_freq - 1) / (len(words) - 1 + 1e-8)
+        score = np.exp(-self.strength * ratio)
+        return score
+
 
 class length_penalty_score:
     def __init__(self, min_lines=8, steepness=2.0):
@@ -591,17 +803,17 @@ class PHREM:
 
         self.ppfs = phonetic_pattern_flow_score()
         self.rsfs = rhythmic_structure_flow_score()
-        self.eas = emotion_arc_score()
+        self.eas = emotion_alignment_arc_score()
         self.hook = hook_quality_catchiness_score()
         self.rhyme = rhyme_consistency_score()
         self.mcs = motif_consistency_score()
         self.dp = degeneracy_penality_score()
         self.lp = length_penalty_score()
 
-    def compute(self, lyrics):
+    def compute(self, lyrics, emotion_target="Happy"):
         ppfs = self.ppfs.compute(lyrics)
         rsfs = self.rsfs.compute(lyrics)
-        eas = self.eas.compute(lyrics)
+        eas = self.eas.compute(lyrics, emotion_target)
         hook = self.hook.compute(lyrics, ppfs, rsfs)
         rhyme = self.rhyme.compute(lyrics)
         mcs = self.mcs.compute(lyrics)
