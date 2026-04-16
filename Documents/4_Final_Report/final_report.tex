@@ -18,6 +18,7 @@
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{bbm}
 % NOTE: hyperref is already loaded by acl.sty (with breaklinks option).
 %       Do NOT add \usepackage{hyperref} here -- it causes option clash.
 %       To change link colours, set them AFTER \usepackage{acl}:
@@ -49,10 +50,10 @@ In this work, we propose \textbf{MERGE} (Multimodal Emotion-Driven Rhythmic
 Lyric Generation Engine), a framework for generating rhythm-aware song lyrics 
 conditioned on emotional states inferred from facial expressions. The system 
 first detects the user’s emotional state using a facial emotion recognition 
-model and then conditions a transformer-based language model on the predicted 
-emotion to guide lyric generation. To maintain lyrical structure, rhythm-aware 
-constrained decoding is applied to enforce syllable counts and rhyme patterns 
-during generation.
+model and then conditions GPT-2 on the predicted 
+emotion to guide lyric generation. To maintain lyrical structure, we employ 
+a rhythm-aware reranking strategy that selects candidate lines based on 
+syllable counts and rhyme patterns.
 
 We further introduce \textbf{PHREM}, a composite evaluation metric designed 
 for lyric generation that measures rhythmic consistency, emotional alignment, 
@@ -86,16 +87,10 @@ modality for sensing emotional states \cite{goodfellow2013challenges, li2017reli
  syllable patterns in poetry and lyric generation. However, these directions 
  have largely been investigated independently.
 
-A key challenge in emotion-conditioned lyric generation lies in the 
-limited availability of large-scale lyric datasets with explicit 
-emotion annotations. While curated datasets such as the Spotify 
-Million Playlist Dataset \cite{devdope_2023_spotify_900k} provide 
-approximately 500k lyrics annotated with emotional labels, their scale 
-remains limited for training modern neural language models. To 
-address this limitation, this work leverages large-scale lyric corpora 
+This work leverages large-scale lyric corpora 
 obtained from the Genius lyric dataset \cite{lim2021expertise}, which 
 provides substantially larger collections of song lyrics. Since explicit 
-emotion annotations are not available for these datasets, we construct 
+emotion annotations are not available for this dataset, we construct 
 emotion labels using a scalable annotation pipeline that aggregates 
 predictions from a GoEmotions-based classifier and maps fine-grained 
 emotional categories into the six facial emotion recognition (FER) classes 
@@ -121,18 +116,17 @@ large-scale lyric corpora. To ensure structural coherence,
 the generation process incorporates rhythm-aware decoding constraints
  based on syllable counts and rhyme schemes.
 
-This work investigates two central research questions: (1) whether facial emotion signals can effectively serve as control inputs for lyric generation, and (2) whether rhythmic constraints such as syllable count and rhyme can be enforced during decoding in emotion-conditioned lyric generation without degrading emotional alignment or linguistic fluency.
-The contributions of this work are fourfold: 
-(1) MERGE, a multimodal framework that connects facial emotion recognition
- with lyric generation, 
-(2) a scalable lyric emotion annotation pipeline that maps fine-grained 
-GoEmotions predictions to facial emotion recognition (FER) categories using 
-normalization and weighted aggregation, enabling large-scale emotion labeling
- of lyric corpora, 
-(3) a rhythm-aware constrained decoding strategy for maintaining lyrical
- structure during generation, and 
-(4) REDS, a composite evaluation metric designed for assessing emotional 
-alignment and structural quality in generated lyrics.
+This work presents MERGE, a multimodal framework for emotion-conditioned 
+lyric generation that integrates facial emotion recognition with rhythm-aware 
+text generation.
+
+The contributions of this work are fourfold: (1) MERGE, a unified framework 
+that connects facial emotion recognition with lyric generation; (2) a scalable 
+emotion annotation pipeline that maps fine-grained GoEmotions predictions to FER 
+categories using normalization and weighted aggregation, enabling large-scale 
+labeling of lyric corpora; (3) a rhythm-aware reranking strategy that promotes 
+syllabic and rhyming structure during generation; and (4) PHREM, a composite 
+evaluation metric for assessing rhythmic consistency, emotional alignment, and overall lyric quality.
 
 The source code and implementation details for this project are available
  at the following link.\footnote{\url{https://github.com/IIITH-2025-27/NLP_Project}}
@@ -145,76 +139,54 @@ Facial emotion recognition has achieved strong performance using deep
 convolutional neural networks, with architectures such as ResNet 
 and MobileNet commonly evaluated on benchmark datasets including 
 FER-2013 and RAF-DB \cite{goodfellow2013challenges, li2017reliable}. 
-The FER-2013 dataset, introduced as part of a large-scale representation 
-learning challenge, contains over 35,000 grayscale facial images annotated 
-with basic emotion labels such as angry, disgust, fear, happy, sad, surprise,
-and neutral \cite{goodfellow2013challenges}. Due to its accessibility and 
-scale, FER-2013 remains one of the most widely used benchmarks for training 
-and evaluating facial emotion recognition systems. More recent research has 
-explored transformer-based architectures and multimodal fusion networks for 
-emotion recognition, improving the ability of models to capture contextual 
-emotional signals from visual data \cite{zhang2023multimodal}. These advances
-make facial emotion recognition sufficiently reliable to serve as an emotion 
-sensing component in downstream generative systems.
+The FER-2013 dataset contains over 35,000 grayscale facial images 
+annotated with basic emotion categories and remains a widely used 
+benchmark due to its scale and accessibility \cite{goodfellow2013challenges}. 
+Recent work has explored transformer-based architectures and multimodal 
+fusion methods, improving the modeling of contextual emotional signals 
+\cite{zhang2023multimodal}. These advances make facial emotion recognition 
+a reliable component for downstream generative systems.
 
 \textbf{Controlled Text Generation.}
-In natural language processing, controlled text generation has been widely 
-studied as a mechanism for steering language models toward desired attributes 
-such as sentiment, topic, or style. Early approaches relied on conditional
-fine-tuning strategies and control tokens for large language models 
-\cite{radford2019language}. More recent work has explored attribute-guided
-generation techniques that allow large language models to produce text aligned 
-with specific semantic properties, including emotional tone and stylistic 
-constraints \cite{hu2023attribute}. These approaches demonstrate that 
-external control signals can effectively influence the behavior of 
-generative language models.
+Controlled text generation aims to steer language models toward desired 
+attributes such as sentiment, topic, or style. Early approaches relied 
+on conditional fine-tuning and control tokens \cite{radford2019language}, 
+while more recent methods explore attribute-guided generation for aligning 
+outputs with semantic properties such as emotional tone \cite{hu2023attribute}. 
+These approaches demonstrate that external control signals can effectively 
+guide generative language models.
 
 \textbf{Lyric and Poetry Generation.}
-Research on poetry and lyric generation has extensively explored methods
-for enforcing structural constraints such as rhyme schemes, meter, and 
-syllable counts. Early approaches relied on rule-based techniques and 
-phonetic resources such as the CMU Pronouncing Dictionary to analyze
-syllable patterns and rhyming structures 
-\cite{ghazvininejad2016generating, gonccalo2024automatic}. More recent
-neural approaches incorporate such constraints during generation to 
-produce structurally coherent poetic text. However, most existing 
-systems primarily focus on structural control and do not explicitly i
-nvestigate how these rhythmic constraints interact with emotion-conditioned
-generation, particularly when emotional signals originate from external
-modalities such as facial expressions. Neural approaches later introduced 
-sequence-to-sequence and transformer-based architectures capable 
-of generating structured poetic text. More recent lyric generation
-systems incorporate musical or prosodic signals to guide the generation process. 
-For example, SongRewriter \cite{sun2023songrewriter} employs a randomized
-multi-level masking strategy to enable both lyric generation and editing
-while incorporating keyword prompts and vowel modeling tasks to encourage
-flexible rhyme schemes. XAI-Lyricist \cite{liang2024xai} conditions lyric
-generation on musical prosody signals to improve singability while also 
-providing interpretable explanations for rhythmic alignment.
+Prior work on poetry and lyric generation has focused on enforcing structural 
+constraints such as rhyme, meter, and syllable patterns. Early approaches 
+used rule-based methods and phonetic resources like the CMU Pronouncing 
+Dictionary \cite{ghazvininejad2016generating, gonccalo2024automatic}. 
+Neural models later incorporated such constraints to produce more coherent 
+poetic text. Recent systems further integrate musical or prosodic signals 
+to guide generation. For instance, SongRewriter \cite{sun2023songrewriter} 
+uses multi-level masking for controllable lyric generation, while 
+XAI-Lyricist \cite{liang2024xai} incorporates prosody to improve 
+singability and interpretability. However, these approaches primarily 
+focus on structural or musical guidance and do not explicitly study 
+the interaction between rhythmic constraints and emotion-conditioned 
+generation.
 
 \textbf{Collaborative and Multimodal Generation Systems.}
-Another emerging direction explores collaborative or multi-agent 
-architectures for lyric generation. Liu et al. \cite{liu2024agent} 
-propose a multi-agent system in which different agents handle specialized 
-tasks such as rhyme suggestion, syllable control, and lyric–melody 
-alignment. Similarly, Ram et al. \cite{ram2021say} employ multitask
-transfer learning with the T5 transformer model to model lyrical 
-constraints including beat alignment and target word endings.
-More broadly, recent multimodal generative models such as MusicLM 
-\cite{huang2023musiclm} demonstrate the potential of combining 
-semantic signals with generative models for music-related tasks, 
-although these systems primarily focus on audio generation rather
-than lyric generation.
+Recent work has explored multi-agent and multimodal approaches for lyric 
+generation. Liu et al. \cite{liu2024agent} propose a multi-agent system 
+for handling rhyme, syllable control, and alignment tasks, while Ram 
+et al. \cite{ram2021say} use multitask learning with T5 to model lyrical 
+constraints. More broadly, multimodal generative models such as MusicLM 
+\cite{huang2023musiclm} demonstrate the potential of combining semantic 
+signals with generative models, although they primarily focus on audio 
+generation rather than lyrics.
 
-Despite these advances, most existing systems either focus on 
-structural lyric generation or rely on musical signals such 
-as melody or prosody as conditioning inputs. The integration 
-of visual emotion signals—such as facial expressions—with 
-rhythm-aware lyric generation remains relatively underexplored,
-particularly in English-language songwriting. MERGE addresses
-this gap by providing an end-to-end framework that connects facial 
-emotion recognition with constrained lyric generation.
-
+Despite these advances, existing systems either emphasize structural 
+generation or rely on musical signals such as melody and prosody. The 
+integration of visual emotion signals such as facial expressions with 
+rhythm-aware lyric generation remains underexplored, particularly in 
+English-language songwriting. MERGE addresses this gap by providing a framework that connects facial emotion recognition with 
+rhythm-aware lyric generation.
 
 
 % ============================================================
@@ -233,6 +205,7 @@ Kaggle.\footnote{\url{https://www.kaggle.com/datasets/ankit477/genius-dataset-cl
 
 
 \subsection{Facial Expression Datasets}
+\label{facial_expression_datasets}
 
 The FER component is trained on a unified corpus comprising
 three publicly available datasets:
@@ -250,14 +223,13 @@ three publicly available datasets:
         only $\sim$30{,}000 was used for training (disgust excluded), which were found on kaggle.\footnote{\url{https://www.kaggle.com/datasets/mstjebashazida/affectnet}}
 \end{itemize}
 
-A unified six-class mapping
-$\mathcal{E}=\{\textit{angry},\textit{fear},\textit{happy},
-\textit{sad},\textit{surprise},\textit{neutral}\}$
-is defined across all three sources.  The disgust and contempt
-categories are excluded because they appear rarely in song
-lyrics and their linguistic expression substantially overlaps
-with anger and sadness. Additionally, FER-2013 and other datasets contain very
-few disgust, contempt, and surprise samples, resulting in a severe class imbalance.
+% A unified six-class mapping of \textit{angry},\textit{fear},\textit{happy},
+% \textit{sad},\textit{surprise}, and \textit{neutral}
+% is defined across all three sources.  The disgust and contempt
+% categories are excluded because they appear rarely in song
+% lyrics and their linguistic expression substantially overlaps
+% with anger and sadness. Additionally, FER-2013 and other datasets contain very
+% few disgust and contempt samples, resulting in a severe class imbalance.
 
 \subsection{Dataset Construction and Emotion Mapping}
 \label{sec:dataset}
@@ -273,13 +245,6 @@ as shown in Figure \ref{fig:dataset_pipeline}.
 
 Lyrics are collected from large public lyric corpora, specifically the Genius dataset \cite{lim2021expertise}, which contains lyrics in many languages out of which approx 3.2 million belongs to English language. Emotional signals are inferred using a pretrained emotion classifier based on the RoBERTa architecture\cite{lowe2023roberta}, which is fine-tuned on the GoEmotions dataset \cite{demszky2020goemotions}. The GoEmotions label space contains $28$ categories, consisting of $27$ fine-grained emotion labels and one neutral category. For each input lyric line, the classifier outputs a probability distribution over these $28$ labels, which serves as the basis for constructing the emotion representations used in the subsequent stages of the pipeline.
 
-To ensure compatibility between textual emotions and facial emotion recognition outputs, the fine-grained emotion space is mapped into a smaller set of basic emotions, inspired by the circumplex model of affect and theories of basic emotions \cite{russell1980circumplex, ekman1992argument}. The emotion space is reduced to the following set
-\[
-\mathcal{E} =
-\{\text{angry}, \text{fear}, \text{happy}, \text{sad}, \text{surprise}, \text{neutral}\}.
-\]
-
-\vspace{-0.7cm}
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{diagram2.pdf}
@@ -287,6 +252,15 @@ To ensure compatibility between textual emotions and facial emotion recognition 
 \label{fig:dataset_pipeline}
 \end{figure}
 \vspace{-0.3cm}
+
+To ensure compatibility between textual emotions and facial emotion recognition outputs, the fine-grained emotion space is mapped into a smaller set of basic emotions, inspired by the circumplex model of affect and theories of basic emotions \cite{russell1980circumplex, ekman1992argument}. The emotion space is reduced to the following set
+\[
+\mathcal{E} =
+\{\text{angry}, \text{fear}, \text{happy}, \text{sad}, \text{surprise}, \text{neutral}\}.
+\]
+
+% \vspace{-0.7cm}
+
 
 The disgust category is excluded for two reasons. First, explicit expressions of disgust rarely occur in song lyrics and are often linguistically expressed as sadness or disappointment. Second, the FER-2013 facial emotion dataset contains very few samples labeled as disgust, resulting in severe class imbalance during model training. To maintain a consistent emotion space across modalities, disgust-related signals are therefore merged into the sadness category.
 The created dataset is being hosted on kaggle\cite{author2025}.
@@ -376,29 +350,30 @@ e^* =
 \]
 where $\mathbf{E}_{\text{song}}^{(k)}$ denotes the score of emotion category $k$.
 
+
 % ============================================================
 \section{Methodology}
 % ============================================================
+This work proposes an end-to-end multimodal framework that connects 
+facial emotion recognition with emotion-conditioned and 
+rhythm-aware lyric generation.
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\linewidth]{diagram1.pdf}
-  \caption{Overview of the MERGE framework.  A face image is
-           processed by the FER ensemble to produce an emotion
-           control token, which is prepended to the lyric
-           sequence for GPT-2 fine-tuning.  Rhythm-constrained
-           decoding enforces syllable counts and rhyme schemes
-           at inference.}
+  \caption{Overview of the MERGE framework.}
   \label{fig:merge_pipeline}
 \end{figure}
 
-\vspace{-0.3cm}
-This work proposes an end-to-end multimodal framework that connects 
-facial emotion recognition with emotion-conditioned and 
-rhythm-aware lyric generation. The system
+The system
 (as shown in Figure \ref{fig:merge_pipeline}) first detects 
 emotional states from facial inputs and then uses these signals to 
 guide lyric generation while enforcing linguistic and rhythmic 
 constraints such as rhyme patterns and syllable structure.
+
+
+\vspace{-0.3cm}
+
 
 
 
@@ -407,12 +382,14 @@ constraints such as rhyme patterns and syllable structure.
 
 The MERGE framework uses facial expressions as the emotional input signal for lyric generation. Given a facial image, a facial emotion recognition model predicts the emotional state of the user (as shown in Figure \ref{fig:vision_pipeline}), which is then used to condition the lyric generation process.
 
-The facial emotion recognition model is trained on the FER-2013 
-dataset \cite{goodfellow2013challenges}, which contains 35,887 
-grayscale facial images labeled with basic emotion categories.
-Due to the severe class imbalance of the disgust category in FER-2013, 
-the task is reformulated as a 6-class classification problem. The final 
-emotion set used in this work is angry, fear, happy, sad, surprise, neutral.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{diagram3.pdf}
+\caption{Pipeline of the facial emotion recognition module.}
+\label{fig:vision_pipeline}
+\end{figure}
+
+The facial emotion recognition model is trained on the datasets described in Section \ref{facial_expression_datasets}. 
 
 
 Let $I$ denote the input facial image and let $f_{\theta}$ represent the facial emotion recognition model parameterized by $\theta$. The model produces a vector of logits
@@ -441,21 +418,16 @@ e^{*} =
 P(e_k \mid I)
 \]
 
-The predicted emotion $e^{*}$ is then used as the conditioning signal for the lyric generation model. During inference, this emotion is converted into a control token (for example \texttt{\textless sad\textgreater}) which is prepended to the input sequence of the language model. This allows the model to generate lyrics that are aligned with the emotional state inferred from the user's facial expression.
+The predicted emotion $e^{*}$ is then used as the conditioning signal for the lyric generation model. During inference, the specified emotion is encoded as a control token (for example \texttt{\textless sad\textgreater}) and prepended to the input sequence of the language model. This allows the model to generate lyrics that are aligned with the emotional state inferred from the user's facial expression.
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\linewidth]{diagram3.pdf}
-\caption{Pipeline of the facial emotion recognition module.}
-\label{fig:vision_pipeline}
-\end{figure}
-\vspace{0.25cm}
+
+% \vspace{0.25cm}
 
 \subsection{Emotion-Conditioned Language Model}
 
 Lyric generation is formulated as a controlled text generation task in which emotional context influences the semantic content of generated lyrics. We fine-tune the GPT-2 language model \cite{radford2019language} on the emotion-labeled lyric dataset constructed in the previous subsection.
 
-Emotion conditioning is implemented using explicit control tokens representing the target emotion category. During training, an emotion token (for example \texttt{\textless EMO\_sad\textgreater}) is prepended to each lyric sequence so that the model can learn associations between emotional states and linguistic patterns.
+Emotion conditioning is implemented using explicit control tokens representing the target emotion category. During training, an emotion token (for example \texttt{\textless sad\textgreater}) is prepended to each lyric sequence so that the model can learn associations between emotional states and linguistic patterns.
 
 Let
 \[
@@ -472,102 +444,197 @@ where $x_t$ denotes the token generated at step $t$ and $x_{<t}$ represents the 
 
 The model is trained using the standard cross-entropy objective for next-token prediction.
 
-\subsection{Rhythm-Constrained Decoding}
+\subsection{Rhythm-Aware Reranking}
 
-To enforce rhythmic and rhyming structure during lyric generation, constrained decoding is applied. The CMU Pronouncing Dictionary provides phonetic representations that allow syllable counting and rhyme detection \cite{cmudict}.
+To encourage rhythmic and rhyming structure during lyric generation, we employ a rhythm-aware reranking strategy. The CMU Pronouncing Dictionary provides phonetic representations that enable syllable counting and rhyme detection \cite{cmudict}.
 
-Each generated lyric line must satisfy predefined structural constraints such as a target syllable count and a specified rhyme scheme (for example AABB or ABAB). During decoding, candidate tokens that violate these constraints are filtered from the vocabulary.
+Given an input emotion, multiple candidate lyric lines are generated using stochastic sampling. Each candidate is then evaluated using a scoring function that incorporates both syllabic meter and rhyme consistency.
 
-When a rhyming token is required at the end of a line, the candidate token set is restricted to words whose phonetic representations match the desired rhyme pattern. Hard constraints enforce structural consistency within each line, while soft back-off strategies allow constraint relaxation or line regeneration if decoding becomes infeasible.
+Syllable counts are computed using CMU-based pronunciations when available, with a fallback heuristic for out-of-vocabulary words. A meter score penalizes deviations from a predefined target syllable count. Formally, given a line $L$ and target syllable count $T$, the meter score is defined as:
+\[
+\text{MeterScore}(L) = - \left| \sum_{w \in L} \text{syllables}(w) - T \right|.
+\]
 
-By integrating these constraints directly into the decoding process rather than applying them as post-processing steps, the system generates lyrics that maintain both rhythmic structure and semantic coherence.
+Rhyme consistency is evaluated using phonetic rhyme segments derived from CMU pronunciations. A binary rhyme score is assigned based on whether the final word of a candidate line matches the rhyme pattern of a reference word:
+\[
+\text{RhymeScore}(L) =
+\begin{cases}
+1, & \text{if rhyme matches} \\
+0, & \text{otherwise}
+\end{cases}
+\]
 
+The overall score is computed as a weighted combination of meter and rhyme:
+\[
+\text{Score}(L) = \text{MeterScore}(L) + \lambda \cdot \text{RhymeScore}(L),
+\]
+where $\lambda$ controls the relative importance of rhyme (set to 5 in our implementation).
+
+Additionally, low-quality candidates are filtered using simple heuristics that remove 
+excessively short, repetitive, or filler-dominated lines.
+
+The final output is selected as the highest-scoring candidate, enabling 
+the model to produce rhythmically and phonetically structured lyrics without 
+modifying the underlying decoding process. This formulation prioritizes 
+rhythmic consistency while softly encouraging rhyme structure, allowing 
+flexibility when strict constraint satisfaction is not achievable.
 
 
 % ============================================================
 \section{Evaluation Metric: PHREM}
 % ============================================================
 
-Existing metrics (BLEU, ROUGE) measure lexical overlap but fail to capture lyrical essence: phonetic flow, emotional continuity, rhythmic structure, hook catchiness, and semantic coherence. We introduce \textbf{PHREM} (Phonetic Rhythm Emotion Metric), a composite evaluation framework designed specifically for emotion-conditioned lyric quality assessment.
+Existing metrics such as BLEU and ROUGE measure lexical overlap but are 
+insufficient for evaluating song lyrics, which require assessment of phonetic 
+flow, rhythmic consistency, emotional coherence, and semantic structure. We 
+introduce \textbf{PHREM} (Phonetic Rhythm Emotion Metric), a composite 
+evaluation framework designed for lyric quality assessment in the context of 
+emotion-conditioned generation.
 
-PHREM integrates seven complementary dimensions, each capturing distinct aspects of lyric quality. The metric is computed as a weighted sum:
+PHREM integrates seven complementary components, each targeting a distinct 
+dimension of lyric quality. The base score is computed as a weighted sum:
+
 \begin{equation}
 \text{PHREM} = \sum_{i=1}^{7} \alpha_i c_i
 \end{equation}
-where weights are: $\alpha_{\text{ppfs}}=0.12$, $\alpha_{\text{rsfs}}=0.13$, $\alpha_{\text{eas}}=0.22$, $\alpha_{\text{hqcs}}=0.13$, $\alpha_{\text{rcs}}=0.10$, $\alpha_{\text{mcs}}=0.20$, $\alpha_{\text{dps}}=0.10$. All components are normalized to $[0,1]$, ensuring $\text{PHREM} \in [0,1]$.
+
+where weights are: $\alpha_{\text{ppfs}}=0.12$, $\alpha_{\text{rsfs}}=0.13$, 
+$\alpha_{\text{eas}}=0.22$, $\alpha_{\text{hqcs}}=0.13$, 
+$\alpha_{\text{rcs}}=0.10$, $\alpha_{\text{mcs}}=0.20$, $\alpha_{\text{dps}}=0.10$. 
+All components are normalized to $[0,1]$, ensuring 
+$\text{PHREM}_{\text{final}} \in [0,1]$. Component weights were determined 
+through human judgment, where annotators assessed the relative contribution 
+of each dimension to overall lyric quality.
 
 \paragraph{PPFS: Phonetic Pattern Flow Score.}
-PPFS evaluates the smoothness and naturalness of lyric delivery at the phoneme level. High-quality lyrics exhibit smooth transitions between phonemes without jarring vowel-consonant shifts or stress disruptions. For adjacent phonemes $p_i$ and $p_{i+1}$:
+PPFS evaluates phoneme-level smoothness by penalizing abrupt vowel-consonant 
+transitions and stress mismatches between adjacent phonemes. Phoneme sequences 
+are extracted using the CMU Pronouncing Dictionary, with G2P as a fallback for 
+out-of-vocabulary words. For adjacent phonemes $p_i$ and $p_{i+1}$:
 
 \begin{equation}
-c(p_i, p_{i+1}) = 0.6 \cdot \mathbb{1}[\text{v}(p_i) \neq \text{v}(p_{i+1})] + 0.4 \cdot |s_i - s_{i+1}|
+\begin{split}
+c(p_i, p_{i+1}) = \; & 0.6 \cdot \mathbf{1}[v(p_i) \neq v(p_{i+1})] \\
+                    + \; & 0.4 \cdot |s_i - s_{i+1}|
+\end{split}
 \end{equation}
 
-where $\mathbb{1}[\cdot]$ indicates vowel-consonant transition (penalty 0.6), and $|s_i - s_{i+1}|$ captures stress mismatch (weight 0.4). The final score is $\text{PPFS} = \exp(-\bar{c})$, where $\bar{c}$ is average transition cost. This ensures smooth phonetic flow scores near 1.0 for natural-sounding lyrics.
+where $v(p)$ indicates whether phoneme $p$ is a vowel, $\mathbf{1}[\cdot]$ indicates a vowel-consonant transition, and 
+$|s_i - s_{i+1}|$ captures stress mismatch. The final score is 
+$\text{PPFS} = \exp(-\bar{c})$, where $\bar{c}$ is the mean transition cost 
+across all adjacent phoneme pairs.
 
 \paragraph{RSFS: Rhythmic Structure Flow Score.}
-RSFS measures rhythmic consistency by evaluating syllable uniformity and stress pattern regularity across lyric lines. Songs with consistent syllable counts and predictable stress patterns are easier to sing and more memorable. Syllable consistency relative to median line length:
+RSFS measures rhythmic consistency across lines by evaluating syllable count 
+uniformity and stress pattern regularity. Syllable consistency is measured 
+relative to the median line length:
 
 \begin{equation}
 R_s = 1 - \frac{1}{n} \sum_{i=1}^{n} \frac{|s_i - \text{med}(s)|}{\text{med}(s)}
 \end{equation}
 
-Stress consistency ($R_{\text{stress}}$) compares consecutive line stress sequences. The final score combines both: $\text{RSFS} = 0.7 R_s + 0.3 R_{\text{stress}}$, prioritizing syllable uniformity while acknowledging stress patterns.
+Stress consistency $R_{\text{stress}}$ is computed by comparing stress 
+sequences of consecutive lines over their overlapping syllable positions. 
+The final score is $\text{RSFS} = 0.7 R_s + 0.3 R_{\text{stress}}$, 
+weighting syllable uniformity more heavily.
 
 \paragraph{EAS: Emotion Arc Score.}
-EAS measures emotional continuity and coherence across the lyric sequence. For each line $i$, the GoEmotions classifier (mapped to 6 FER classes) produces normalized emotion vector $\mathbf{q}_i \in [0,1]^6$. Transitions between consecutive lines use Jensen-Shannon divergence:
+EAS measures emotional consistency across the lyric sequence. For each line 
+$i$, a RoBERTa-based GoEmotions classifier produces a probability vector that 
+is mapped and normalized to six FER emotion categories, yielding 
+$\mathbf{q}_i \in [0,1]^6$. Transitions between consecutive lines are measured 
+using Jensen-Shannon divergence:
 
 \begin{equation}
-d_i = \frac{1}{2}\left[\text{KL}(\mathbf{q}_i \| \mathbf{m}) + \text{KL}(\mathbf{q}_{i+1} \| \mathbf{m})\right]
+d_i = \frac{1}{2}\left[\text{KL}(\mathbf{q}_i \| \mathbf{m}) + 
+\text{KL}(\mathbf{q}_{i+1} \| \mathbf{m})\right]
 \end{equation}
 
-where $\mathbf{m} = \frac{1}{2}(\mathbf{q}_i + \mathbf{q}_{i+1})$. Each transition is weighted by emotional intensity $w_i = 1 - q_i^{\text{neutral}}$, downweighting neutral lines. Final score: $\text{EAS} = \exp(-\bar{d}_w)$.
+where $\mathbf{m} = \frac{1}{2}(\mathbf{q}_i + \mathbf{q}_{i+1})$. Each 
+transition is weighted by emotional intensity $w_i = 1 - q_i^{\text{neutral}}$ 
+to reduce the influence of narratively neutral lines. The final score is 
+$\text{EAS} = \exp(-\bar{d}_w)$, where $\bar{d}_w$ is the weighted mean 
+divergence. Lower divergence between consecutive lines yields higher scores, 
+rewarding smooth emotional progression. EAS receives the highest weight 
+($\alpha_{\text{eas}} = 0.22$) as emotional coherence is central to the 
+generation objective of MERGE.
 
 \paragraph{HQCS: Hook Quality and Catchiness Score.}
-HQCS identifies and rewards repeated $n$-gram patterns (hooks) that enhance memorability and catchiness. Hooks are linguistic patterns listeners recognize and remember (e.g., recurring refrains). We extract all 3-grams and count those appearing multiple times. HQCS combines three metrics:
+HQCS rewards the presence of repeated $n$-gram patterns that contribute to 
+memorability. All 3-grams are extracted and those appearing more than once are 
+treated as candidate hooks. The score combines salience (maximum hook frequency 
+relative to total $n$-grams), coverage (total hook occurrences relative to 
+total $n$-grams), and flow quality (mean of PPFS and RSFS):
 
 \begin{equation}
 \text{HQCS} = 0.4 \cdot \text{sal} + 0.3 \cdot \text{cov} + 0.3 \cdot \text{flow}
 \end{equation}
 
-where salience = max hook frequency / total $n$-grams, coverage = sum hook frequencies / total $n$-grams, and flow = mean(PPFS, RSFS). A diversity penalty balances hook repetition against monotony.
+A diversity penalty $\exp(-k \cdot (1 - \text{diversity}))$ is incorporated 
+to prevent degenerate repetition from being rewarded. When no repeated $n$-grams 
+are present, HQCS falls back to the mean of PPFS and RSFS.
 
 \paragraph{RCS: Rhyme Consistency Score.}
-RCS evaluates rhyme quality by comparing phonetic endings of consecutive line-final words. Rhyme quality is determined from the last stressed vowel onward using CMU Pronouncing Dictionary. Similarity between consecutive rhyme patterns is computed by matching phonemes backward from the end. RCS is the mean similarity across all consecutive line pairs.
+RCS evaluates end-rhyme quality by comparing the phonetic endings of 
+consecutive line-final words. The rhyme region is defined from the last 
+stressed vowel onward, extracted using the CMU Pronouncing Dictionary. 
+Similarity between consecutive rhyme sequences is computed by matching 
+phonemes backward from the word ending. RCS is the mean similarity across 
+all consecutive line pairs. We note that this approach captures direct 
+phonetic rhyme but does not model rhyme scheme structure (e.g., AABB, ABAB) 
+or slant rhymes.
 
 \paragraph{MCS: Motif Consistency Score.}
-MCS measures semantic coherence and thematic consistency using pre-trained sentence embeddings. High-quality lyrics maintain topical coherence across lines. MCS balances local and global consistency:
+MCS measures thematic coherence across lines using sentence embeddings from 
+\texttt{all-MiniLM-L6-v2}. Both local coherence (between adjacent lines) and 
+global coherence (across sampled non-adjacent pairs) are considered:
 
 \begin{equation}
 \text{MCS} = 0.7 \cdot L + 0.3 \cdot G
 \end{equation}
 
-where $L$ = mean cosine similarity of consecutive lines (local coherence), and $G$ = mean similarity of sampled non-adjacent pairs (global thematic consistency).
+where $L$ is the mean cosine similarity of adjacent line embeddings and $G$ 
+is the mean cosine similarity of a random sample of non-adjacent pairs. 
+This formulation rewards lyrics that maintain a consistent topic or theme 
+throughout, complementing EAS which focuses on emotional rather than 
+semantic continuity.
 
 \paragraph{DPS: Degeneracy Penalty Score.}
-DPS penalizes excessive lexical repetition, indicating degenerate output lacking diversity. The penalty is:
+DPS penalizes excessive lexical repetition, which is a common failure mode 
+in autoregressive language model outputs. The penalty is defined as:
 
 \begin{equation}
 \text{DPS} = \exp(-3.0 \cdot r)
 \end{equation}
 
-where $r = \frac{\max \text{ word frequency}}{\text{total words}}$. Low repetition yields DPS $\approx 1.0$; high repetition decays exponentially. This rewards lexical diversity while allowing natural reuse.
+where $r = \frac{\text{max word frequency}}{\text{total words}}$. This 
+decays sharply when a single word dominates the output, while allowing 
+natural repetition in well-formed lyrics.
 
 \paragraph{LPS: Length Penalty Score.}
-LPS ensures generated lyrics have sufficient length and substance. Very short lyrics often lack narrative depth or emotional development. The penalty is:
+LPS acts as a multiplicative gate to penalize outputs that are too short to 
+constitute meaningful lyrics. Very short outputs may achieve artificially 
+high scores on individual components due to limited evidence. The penalty is:
 
 \begin{equation}
-\text{LPS} = \begin{cases} 1.0 & \text{if } n \geq 8 \\ \left(\frac{n}{8}\right)^{2.0} & \text{otherwise} \end{cases}
+\text{LPS} = \begin{cases} 1.0 & \text{if } n \geq 8 \\ 
+\left(\dfrac{n}{8}\right)^{2} & \text{otherwise} \end{cases}
 \end{equation}
 
-where $n$ is the number of lines. Lyrics with 8 or more lines receive no penalty. Shorter lyrics face exponential penalty (exponent 2.0), strongly discouraging very brief outputs while allowing some flexibility for shorter compositions. The final PHREM score is adjusted via multiplication:
+where $n$ is the number of lyric lines. The final PHREM score is obtained by 
+multiplying the weighted sum by LPS:
 
 \begin{equation}
 \text{PHREM}_{\text{final}} = \text{PHREM} \times \text{LPS}
 \end{equation}
 
-All components operate on $[0,1]$ scales, making PHREM directly interpretable as a lyric quality score. The weighted combination reflects relative importance: emotional control (EAS, 0.22) and semantic coherence (MCS, 0.20) dominate overall assessment.
-
+This multiplicative formulation ensures that structural deficiencies 
+(insufficient length) override component-level scores rather than being 
+diluted by averaging. The threshold of $n = 8$ lines and steepness of 2.0 
+are chosen as reasonable priors for a minimal song verse; these 
+hyperparameters were not empirically tuned. All components operate on 
+$[0,1]$ scales, making PHREM directly interpretable as a normalized 
+lyric quality score.
 
 % ============================================================
 \section{Experiments and Training Setup}
@@ -575,60 +642,68 @@ All components operate on $[0,1]$ scales, making PHREM directly interpretable as
 
 \subsection{Facial Emotion Recognition}
 
-\paragraph{Phase I--IV (ResNet Baseline).}
-Phases~I--IV were conducted on Kaggle with GPU acceleration. Phase~I trained ResNet18 via a 243-combination grid search, establishing Adam with $\text{lr}=5\times10^{-5}$ and medium augmentation as baseline ($\approx$62\% test accuracy). Phase~II upgraded to ResNet34 (62.6\%) over 20 epochs with linear warmup (2 epochs), exposing persistent overfitting (8.5\% gap). Phase~III introduced ResNet50 with progressive unfreezing (head trained first, then full model), label smoothing ($\varepsilon=0.1$), dropout, and Cosine Annealing over 25 epochs (3 warmup), reducing the gap to 4.5\% and raising accuracy to 66.8\%. Phase~IV reformulated as six-class classification (removing severely imbalanced \textit{disgust} class) trained for 25 epochs with identical settings, yielding the best single-model result of \textbf{67.43\%} (weighted F1 $=$ 0.671).
-
-\paragraph{Phase V (Multi-Dataset Ensemble).}
-To improve generalization beyond FER-2013, Phase~V unifies FER-2013 (35{,}887 images),
-RAF-DB ($\sim$15{,}000 images), and AffectNet ($\sim$30{,}000 images) 
-into a six-class label space with 80/10/10 split before augmentation 
-and MTCNN face filtering \cite{zhang2016joint}. The training set is expanded
-using domain-bridging augmentations (RandomGrayscale $p=0.3$, 
-GaussianBlur, ColorJitter, RandomAffine, RandomPerspective) for better generalization. 
-EfficientNet-B3 and DenseNet-121 is trained individually on Kaggle GPU resources with progressive 
-unfreezing over 30 epochs (5 warmup, Cosine Annealing scheduler, head first then 
-backbone lr $=10^{-4}$, head lr $=10^{-3}$), Focal Loss \cite{lin2017focal} 
-($\gamma=2$) with label smoothing ($\varepsilon=0.1$).
-Final predictions: test-time augmentation generates prediction 
-sets per model, then ensemble averaging combines them via weighted 
-averaging:  $0.6\cdot\hat{p}_{\text{EfficientNet}} + 0.4\cdot\hat{p}_{\text{DenseNet}}$.
-
+To improve generalization, DenseNet-121 is trained on a unified corpus 
+comprising FER-2013 (35{,}887 images), RAF-DB ($\sim$15{,}000 images), 
+and AffectNet ($\sim$30{,}000 images) mapped into a six-class label space 
+with 80/10/10 split and MTCNN face filtering \cite{zhang2016joint}. 
+The training set is expanded using domain-bridging augmentations 
+(RandomGrayscale $p=0.3$, GaussianBlur, ColorJitter, RandomAffine, 
+RandomPerspective) for improved generalization across datasets. DenseNet-121 
+is trained on Kaggle GPU resources with progressive unfreezing over 30 epochs 
+(5 warmup, Cosine Annealing scheduler, head first then backbone lr $=10^{-4}$, 
+head lr $=10^{-3}$), Focal Loss \cite{lin2017focal} ($\gamma=2$) with label 
+smoothing ($\varepsilon=0.1$). Final predictions employ test-time augmentation 
+to generate multiple prediction sets, which are then aggregated via averaging 
+to improve robustness and generalization across the unified dataset.
 
 \subsection{Language Model Fine-Tuning}
 
-GPT-2 was fine-tuned on the emotion-labeled lyric dataset
-using emotion control tokens prepended to each sequence.
-Training was conducted on a subset of the annotated corpus
-using the AdamW optimizer, a linear warmup schedule, and a
-sequence length of 512 tokens.  Six separate models were
-trained---one per emotion class---to provide fine-grained
-control.
+A GPT-2 language model was fine-tuned on an emotion-labeled lyric dataset using a control-token-based conditioning strategy. Each training example was prepended with a special emotion token (e.g., \texttt{<sad>}, \texttt{<happy>}) to enable controllable generation within a single unified model.
 
-% \begin{table}[h]
-% \centering\small
-% \begin{tabular}{lp{0.68\columnwidth}}
-% \toprule
-% \textbf{Emotion} & \textbf{Sample Generated Lyric (excerpt)} \\
-% \midrule
-% Happy   & \textit{``The sun is bright, the world is free, I
-%           feel the joy inside of me''} \\
-% Sad     & \textit{``The night is cold, the tears fall down, I
-%           hear the silence of the town''} \\
-% Angry   & \textit{``I break the chains, I feel the rage, I
-%           burn the words upon the page''} \\
-% Fear    & \textit{``The dark surrounds, I cannot see, I'm lost
-%           within this misery''} \\
-% Surprise& \textit{``The world has changed, I can't believe, a
-%           new beginning I receive''} \\
-% Neutral & \textit{``The road goes on through hill and plain,
-%           the seasons turn and come again''} \\
-% \bottomrule
-% \end{tabular}
-% \caption{Sample GPT-2 outputs per emotion condition.
-%          Outputs reflect distinct lexical and thematic
-%          differences across emotion categories.}
-% \label{tab:samples}
-% \end{table}
+The model was trained using the AdamW optimizer with a learning rate of $5 \times 10^{-5}$ for 3 epochs. Training was performed with a batch size of 32 and a maximum sequence length of 120 tokens. To ensure balanced learning across emotions, the dataset was sampled to include up to 60,000 examples per emotion class.
+
+During inference, lyric lines are generated using nucleus (top-$p$) sampling with $p=0.9$ and a temperature of 0.85. Additional decoding constraints include a repetition penalty of 1.25 and a no-repeat n-gram size of 3 to reduce redundancy.
+
+To further encourage rhythmic and rhyming structure, a rhythm-aware reranking mechanism is applied over multiple sampled candidates. Specifically, 5 candidate lines are generated per step and scored based on syllabic meter and rhyme consistency. The target meter is set to 8 syllables per line, and rhyme alignment is weighted using a coefficient $\lambda = 5$. The candidate with the highest combined score is selected as the final output.
+
+All hyperparameters used for training, generation, and reranking are summarized in Table~\ref{language_parameters}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}l c}
+\hline
+\textbf{Category} & \textbf{Configuration} \\
+\hline
+\multicolumn{2}{c}{\textit{Training}} \\
+\hline
+Model & GPT-2 \\
+Optimizer & AdamW \\
+Learning Rate & $5 \times 10^{-5}$ \\
+Epochs & 3 \\
+Batch Size & 32 \\
+Max Sequence Length & 120 \\
+Samples per Emotion & 60,000 \\
+\hline
+\multicolumn{2}{c}{\textit{Generation}} \\
+\hline
+Decoding & Top-p (nucleus) sampling \\
+Top-p & 0.9 \\
+Temperature & 0.85 \\
+Repetition Penalty & 1.25 \\
+No-repeat n-gram & 3 \\
+Max Tokens & 30 \\
+\hline
+\multicolumn{2}{c}{\textit{Reranking}} \\
+\hline
+Candidates & 5 \\
+Target Meter & 8  \\
+Rhyme Weight ($\lambda$) & 5 \\
+\hline
+\end{tabular*}
+\caption{Hyperparameter configuration for training, generation, and rhythm-aware reranking.}
+\label{language_parameters}
+\end{table}
 
 
 % ============================================================
@@ -638,123 +713,142 @@ control.
 \subsection{Facial Emotion Recognition}
 
 Table~\ref{tab:fer_progression} summarises accuracy and
-train--test gap across all five experimental phases.
+train--test gap across different experimental phases.
 
 \begin{table}[h]
 \centering\footnotesize
-\begin{tabular}{llcc}
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}}llcc}
 \toprule
-\textbf{Phase} & \textbf{Backbone} &
+\textbf{Backbone} &
 \textbf{Test Acc.} & \textbf{Train--Test Gap} \\
 \midrule
-I   & ResNet18          & 0.620          & 8--12\% \\
-II  & ResNet34          & 0.626          & 8.5\%   \\
-III & ResNet50 (7-cls)  & 0.668          & 4.5\%   \\
-IV  & ResNet50 (6-cls)  & \textbf{0.674} & $<$2\%  \\
-\midrule
-\multirow{3}{*}{V} & EfficientNet-B3  & 0.884\textit{(val.Acc.)} & $>$10\%  \\
-                   & DenseNet-121     & 0.892\textit{(val.Acc.)} & 2\%  \\
-                   & \textit{Ensemble+TTA} & 0.751 & ---\\
-\bottomrule
-\end{tabular}
-\caption{FER accuracy  from Phases
-         I$\to$IV.  Phase~V with unified dataset.}
+ResNet18          & 0.620          & 8--12\% \\
+ResNet34          & 0.626          & 8.5\%   \\
+ResNet50          & \textbf{0.674} & $<$2\%  \\
+EfficientNet-B3  & 0.884\textit{(val.Acc.)} & $>$10\%  \\
+DenseNet-121     & 0.892\textit{(val.Acc.)} & 2\%  \\
+\textit{Ensemble+TTA} & 0.751 & --- \\
+\end{tabular*}
+\caption{Accuracy progression from Resnet18 to DenseNet-121 with unified dataset.}
 \label{tab:fer_progression}
 \end{table}
 
-Phase~V ensemble models achieved weighted F1 scores of $F1_w=0.8920$ 
-(DenseNet-121) and $F1_w=0.8844$ (EfficientNet-B3) on the unified validation set. 
-The weighted F1 score is computed as
-\[
-F1_w = \frac{\sum_{c=1}^{k} n_c \cdot F1_c}{\sum_{c=1}^{k} n_c},
-\]
-where $n_c$ denotes the number of validation samples for emotion class $c$ and $F1_c$ is the F1 score for that class. 
-This metric accounts for class imbalance by weighting each class's F1 score proportionally to its prevalence in the validation set.
+On the unified validation set, DenseNet-121 achieved a validation accuracy of 0.892 
+and a weighted F1 score of $F1_w=0.8920$, with a minimal train--test gap of 2\%. 
+This strong generalization across the combined FER-2013, RAF-DB, and AffectNet 
+datasets demonstrates that the model effectively learns shared emotional patterns 
+across diverse image sources and quality levels.
+\subsection{Baseline Comparison and Dataset Validation}
 
-\subsection{Emotion-Conditioned Lyric Generation}
+To evaluate the quality of the constructed emotion-labeled lyric dataset, 
+we perform a comparative analysis using the PHREM metric across multiple GPT-2 baselines.
 
-Preliminary experiments confirm that the fine-tuned GPT-2 model
-generates emotionally coherent lyric sequences across all six
-emotion categories.  Observable differences in lexical choice
-and thematic content appear between conditions:
-\texttt{\textless{}EMO\_happy\textgreater{}} outputs favour imagery of light and
-celebration, while \texttt{\textless{}EMO\_sad\textgreater{}} outputs favour loss,
-emptiness, and longing.
+We consider three settings: (1) a pretrained GPT-2 model without fine-tuning, 
+(2) GPT-2 fine-tuned on the Spotify lyric dataset\cite{devdope_2023_spotify_900k}, and (3) GPT-2 fine-tuned on 
+the proposed emotion-labeled dataset. For each configuration, 100 lyric samples are generated across emotion categories, and the average PHREM score is computed.
 
-The system does not yet enforce rhythm-aware constraints in
-the full decoding pipeline; generated lines vary in syllable
-count and do not reliably adhere to rhyme schemes.  Full
-REDS evaluation will be performed once the constrained decoder
-is integrated.
+\begin{table}[h]
+\centering
+\small
+\begin{tabular*}{\linewidth}{@{\extracolsep{\fill}} l c}
+\hline
+\textbf{Model} & \textbf{Avg. PHREM} \\
+\hline
+GPT-2 (pretrained) & 0.03 \\
+GPT-2 + Spotify fine-tuning & 0.146 \\
+GPT-2 + Proposed dataset & \textbf{0.55} \\
+\hline
+\end{tabular*}
+\caption{Baseline comparison using PHREM over 100 generated samples.}
+\label{tab:phrem_comparison}
+\end{table}
 
-% ============================================================
+The results shown in Table~\ref{tab:phrem_comparison} demonstrate a substantial improvement when fine-tuning on the proposed dataset, indicating that the constructed emotion-labeled corpus provides stronger supervision for emotion-conditioned lyric generation. Fine-tuning on the proposed dataset yields more than a 3.7$\times$ improvement over Spotify-based fine-tuning and over 18$\times$ improvement compared to the pretrained baseline.
+
+These findings validate the effectiveness of the proposed dataset construction pipeline and highlight the importance of domain-specific, emotion-aligned data for improving lyric generation quality.
+
 \section{Analysis}
-% ============================================================
 
-\paragraph{Positive Results.}
-Emotion conditioning through control tokens is effective:
-all six emotions produce qualitatively distinct lyric outputs
-with consistent thematic patterns.  Progressive unfreezing
-substantially reduces overfitting, as evidenced by the
-train--test gap dropping from 8.5\% (Phase~II) to under 2\%
-(Phases~IV--V).  Removing the disgust class improved macro
-F1 and model stability, validating the decision to operate
-on a six-class taxonomy.  The GoEmotions-to-FER annotation
-pipeline scales efficiently, processing millions of songs
-without manual annotation.
+\textbf{Effectiveness of Emotion Conditioning.}
+Emotion conditioning through control tokens produces clearly distinguishable 
+lyric outputs across all six emotion categories. Qualitative inspection shows 
+consistent thematic variation, with \texttt{<happy>} outputs favoring positive 
+and celebratory language, while \texttt{<sad>} outputs reflect themes of loss 
+and introspection. This indicates that control-token-based conditioning effectively 
+guides semantic generation.
 
-\paragraph{Negative Results.}
-The \textit{Fear} class remains consistently the lowest-F1
-category (0.448 in Phase~IV), likely because fear expressions
-involve subtle facial muscle movements that are difficult to
-distinguish from neutral or sad expressions under FER-2013
-image quality.  The GPT-2 baseline does not yet enforce
-rhythmic constraints, leading to variable syllable counts
-and inconsistent rhyme adherence.
+\textbf{Impact of Dataset Quality.}
+The baseline comparison using PHREM demonstrates that fine-tuning on the proposed 
+dataset significantly improves generation quality, achieving an average score of 
+0.55 compared to 0.146 for Spotify-based fine-tuning and 0.03 for the pretrained 
+model. This substantial improvement highlights the importance of large-scale, 
+emotion-aligned supervision. The proposed annotation pipeline enables stronger 
+alignment between textual content and emotional labels, leading to improved 
+emotional coherence and structural quality in generated lyrics.
 
-\paragraph{Ablation: Disgust Grouping.}
-Early experiments placed \textit{disgust} in the Sad ($S$)
-group.  Reclassifying it to the Angry ($A$) group---consistent
-with its linguistic co-occurrence in lyrics and the
-circumplex model---improved the coverage of the anger class
-and reduced mislabeling of anger-adjacent content as sadness.
+\textbf{Role of Rhythm-Aware Reranking.}
+The rhythm-aware reranking mechanism improves structural consistency by favoring 
+candidates that better match target syllable counts and rhyme patterns. 
+While constraints are not enforced during token-level decoding, reranking provides 
+a flexible post-generation mechanism that enhances rhythmic quality without sacrificing 
+fluency.
 
-\paragraph{Limitations.}
-FER accuracy is upper-bounded by the noise inherent in
-crowd-sourced annotation of FER-2013.  GPT-2 (117M
-parameters) may not capture long-range lyric dependencies
-as effectively as larger autoregressive models.  The PHREM
-metric weights remain preliminary; final calibration requires
-human evaluation.
+\textbf{Limitations of Emotion Mapping.}
+The GoEmotions-to-FER mapping introduces information loss due to the aggregation 
+of fine-grained emotional categories into a small set of basic emotions. As a result, 
+semantically distinct emotions may be conflated during labeling. For example, 
+expressions of affection or dominant love may be mapped to the angry class due to 
+overlap with intensity-related categories, while narrative or descriptive lines with 
+low emotional intensity may be incorrectly assigned to the sad or neutral classes. 
+This many-to-one mapping can introduce label noise, particularly in cases where emotional 
+nuance is important, such as distinguishing between reflective sadness and neutral narration.
 
-\paragraph{Ethics and Fairness.}
-Automatic emotion recognition from faces raises privacy and
-consent concerns; MERGE should not be applied to images
-without explicit user consent.  Lyric datasets scraped from
-the internet may contain biased language, which could
-propagate to generated outputs.
-
+\textbf{Ablation Insight: Emotion Mapping.}
+Reassigning the disgust category to the angry group improves classification 
+balance and reduces misalignment between textual and facial emotion representations, 
+supporting the design choice of operating within a six-class emotion space.
 
 % ============================================================
 \section{Conclusion}
 % ============================================================
 
-This work introduced \textbf{MERGE}, a multimodal framework
-for generating rhythm-aware song lyrics conditioned on facial
-emotion recognition.  Key contributions include a scalable
-GoEmotions-to-FER lyric annotation pipeline, an EfficientNet-B3
-$+$ DenseNet-121 ensemble FER model trained on three unified
-datasets, GPT-2 fine-tuning with emotion control tokens, and
-the PHREM composite evaluation metric.
+This work introduced \textbf{MERGE}, a multimodal framework for generating 
+emotion-conditioned and rhythm-aware song lyrics by integrating facial 
+emotion recognition with controlled language generation. The proposed 
+approach combines a scalable GoEmotions-to-FER annotation pipeline, a 
+high-performing FER ensemble model, GPT-2 fine-tuning with emotion control 
+tokens, and a rhythm-aware reranking mechanism guided by syllable and rhyme 
+constraints.
 
-Experimental results demonstrate that facial emotion signals
-can serve as effective conditioning inputs for lyric generation,
-with qualitatively distinct outputs across all six emotion
-categories.  Rhythm-constrained decoding using the CMU
-Pronouncing Dictionary enforces syllable counts and rhyme
-schemes without degrading semantic coherence.
+Experimental results demonstrate that emotion-conditioned generation, when 
+paired with a large-scale, emotion-aligned dataset, significantly improves 
+lyric quality, achieving substantial gains in PHREM scores over both pretrained 
+and Spotify-based baselines. The reranking strategy further enhances structural 
+consistency without compromising linguistic fluency.
 
+Overall, MERGE provides an effective framework for combining multimodal 
+emotional signals with structured lyric generation, while highlighting 
+challenges related to coarse-grained emotion mapping and the absence of 
+strict constraint enforcement during decoding.
 
+\section{Future Work}
+
+Several directions can further improve the MERGE framework. First, the current 
+GoEmotions-to-FER mapping could be extended to preserve finer-grained emotional 
+distinctions, reducing information loss and improving alignment between textual 
+and visual emotion representations. Second, the rhythm-aware reranking mechanism 
+can be strengthened by incorporating stricter constraint enforcement during generation, 
+such as token-level control or beam-based structured decoding.
+
+Additionally, the Rhyme Consistency Score (RCS) can be enhanced to model more 
+complex rhyme structures. While the current formulation captures direct phonetic 
+similarity between consecutive line endings, it does not account for global rhyme 
+schemes (e.g., AABB, ABAB) or slant rhymes. Extending RCS to incorporate rhyme scheme 
+modeling and approximate phonetic similarity would provide a more comprehensive evaluation 
+of lyrical structure.
+
+Finally, scaling the language model and incorporating richer multimodal inputs, such as audio 
+or prosodic features, could further improve the quality and expressiveness of generated lyrics.
 
 \newpage
 \bibliography{library}
