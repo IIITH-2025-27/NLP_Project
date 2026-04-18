@@ -4,7 +4,12 @@ import base64
 
 from api.models import AnalyzeRequest, EmotionRequest
 from auth import get_current_user
-from ml_service import predict_emotion, generate_lyrics, predict_emotion_from_image
+from ml_service import (
+    predict_emotion,
+    generate_lyrics,
+    predict_emotion_from_image,
+    evaluate_generated_lyrics,
+)
 from database_service import image_emotion_data_col, emotion_lyrics_data_col
 
 router = APIRouter(tags=["ML/AI"])
@@ -40,6 +45,7 @@ def _store_emotion_lyrics_record(emotion: str, lyric_result: dict, user_id: str)
         emotion_lyrics_data_col.insert_one({
             "emotion": emotion,
             "lyrics": lyric_result.get("lyrics"),
+            "lyrics_evaluation": lyric_result.get("lyrics_evaluation"),
             "user_id": user_id,
             "created_at": datetime.utcnow(),
         })
@@ -154,6 +160,12 @@ def get_lyrics_for_emotion_endpoint(body: EmotionRequest, current_user=Depends(g
     """Generate lyrics based on detected emotion"""
     try:
         lyric_result = generate_lyrics(body.emotion)
+
+        evaluation = evaluate_generated_lyrics(
+            lyric_result.get("lyrics", ""),
+            body.emotion,
+        )
+        lyric_result["lyrics_evaluation"] = evaluation
 
         _store_emotion_lyrics_record(
             emotion=body.emotion,

@@ -162,6 +162,7 @@ class CreateMessageRequest(BaseModel):
     image_preview: Optional[str] = None  # Base64 image preview URL
     emotion: Optional[dict] = None  # For assistant messages
     lyrics: Optional[str] = None  # For assistant messages
+    lyrics_score: Optional[float] = None
     preprocessed_image: Optional[str] = None  # Base64 preprocessed image for face detection
 
 
@@ -171,4 +172,5 @@ class UpdateMessageRequest(BaseModel):
     image_preview: Optional[str] = None
     emotion: Optional[dict] = None
     lyrics: Optional[str] = None
+    lyrics_score: Optional[float] = None
     preprocessed_image: Optional[str] = None

@@ -18,3 +18,9 @@ torch>=2.0.0
 torchvision>=0.15.0
 facenet-pytorch>=2.5.0
 numpy>=1.24.0
+
+# PHREM lyric evaluation dependencies
+nltk>=3.8.1
+g2p-en>=2.1.0
+transformers>=4.40.0
+sentence-transformers>=2.7.0

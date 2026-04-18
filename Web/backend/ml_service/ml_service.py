@@ -14,6 +14,7 @@ from constants import (
 from .text_to_emotion import get_emotion_from_text
 from .image_to_emotion import predict_emotion_from_image
 from .emotion_to_lyrics import generate_lyrics as _generate_lyrics
+from .evaluate_lyrics import evaluate_generated_lyrics as _evaluate_generated_lyrics
 
 
 def predict_emotion(text: str) -> dict:
@@ -70,3 +71,8 @@ def generate_lyrics(emotion: str) -> dict:
     """
     result = _generate_lyrics(emotion)
     return result
+
+
+def evaluate_generated_lyrics(lyrics: str, emotion_target: str) -> dict:
+    """Wrapper for PHREM lyric quality evaluation."""
+    return _evaluate_generated_lyrics(lyrics, emotion_target)

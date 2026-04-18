@@ -4,7 +4,7 @@ import { getEmotionColor } from "../../utils/helpers";
 import Button from "../common/Button";
 import "./LyricsCard.css";
 
-export default function LyricsCard({ lyrics, emotion }) {
+export default function LyricsCard({ lyrics, emotion, score }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -20,7 +20,14 @@ export default function LyricsCard({ lyrics, emotion }) {
   return (
     <div className="lyrics-card" style={{ "--emotion-color": color }}>
       <div className="lyrics-header">
-        <span className="lyrics-label">✦ Generated Lyrics</span>
+        <div className="lyrics-title-group">
+          <span className="lyrics-label">Generated Lyrics</span>
+          {typeof score === "number" && (
+            <span className="lyrics-score" title="PHREM quality score">
+              Score: {(score * 100).toFixed(1)}%
+            </span>
+          )}
+        </div>
         <Button 
           variant="secondary" 
           onClick={handleCopy}

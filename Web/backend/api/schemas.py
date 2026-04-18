@@ -173,7 +173,13 @@ ENDPOINTS = {
                 "lyrics": "string",
                 "emotion_used": "string",
                 "model": "string",
-                "tokens_generated": "int"
+                "tokens_generated": "int",
+                "lyrics_evaluation": {
+                    "score": "float|null",
+                    "metric": "string",
+                    "status": "string",
+                    "emotion_target": "string"
+                }
             }
         }
     },

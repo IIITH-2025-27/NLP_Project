@@ -196,6 +196,7 @@ export default function Dashboard() {
               input_type: userMessageData.input_type,
               emotion: result.emotion_detection,
               lyrics: result.lyric_generation.lyrics,
+              lyrics_score: result.lyric_generation?.lyrics_evaluation?.score,
             };
 
             if (result.emotion_detection.preprocessed_image) {
@@ -266,6 +267,7 @@ export default function Dashboard() {
             input_type: resolvedInputType,
             emotion: result.emotion_detection,
             lyrics: result.lyric_generation.lyrics,
+            lyrics_score: result.lyric_generation?.lyrics_evaluation?.score,
           };
           if (result.emotion_detection.preprocessed_image) {
             updatePayload.preprocessed_image = result.emotion_detection.preprocessed_image;

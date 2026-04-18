@@ -161,6 +161,8 @@ def create_message(chat_id: str, body: CreateMessageRequest, current_user=Depend
         message["emotion"] = body.emotion
     if body.lyrics:
         message["lyrics"] = body.lyrics
+    if body.lyrics_score is not None:
+        message["lyrics_score"] = body.lyrics_score
     if body.preprocessed_image:
         message["preprocessed_image"] = body.preprocessed_image
     
@@ -217,6 +219,8 @@ def update_message(message_id: str, body: UpdateMessageRequest, current_user=Dep
         update_data["emotion"] = body.emotion
     if body.lyrics is not None:
         update_data["lyrics"] = body.lyrics
+    if body.lyrics_score is not None:
+        update_data["lyrics_score"] = body.lyrics_score
     if body.preprocessed_image is not None:
         update_data["preprocessed_image"] = body.preprocessed_image
 

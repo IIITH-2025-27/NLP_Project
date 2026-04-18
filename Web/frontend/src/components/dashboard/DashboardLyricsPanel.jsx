@@ -59,6 +59,7 @@ export default function DashboardLyricsPanel({
               <LyricsCard
                 lyrics={selectedRequest.lyrics || "Invalid input"}
                 emotion={emotionName}
+                score={selectedRequest.lyrics_score}
               />
             </div>
             {isAnalyzing && (
