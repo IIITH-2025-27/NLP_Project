@@ -39,3 +39,5 @@ Web/frontend/dist/
 Web/frontend/build/
 Web/backend/__pycache__/
 Web/backend/*.pyc
+Web/backend/package.json
+Web/backend/package-lock.json
