@@ -20,7 +20,7 @@ __pycache__/
 .ipynb_checkpoints/
 *.pth
 *.csv
-*.json
+# *.json
 venv/
 .venv/
 Models/Notebooks/venv/
