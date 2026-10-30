@@ -27,6 +27,9 @@ OTP_LENGTH = int(os.getenv("OTP_LENGTH", "6"))  # 6-digit OTP
 
 # Hugging Face Configuration
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")  # Optional: For faster inference and higher rate limits
+# Space for face extraction, text emotion and PHREM (Web/ml_space). Deployed into the
+# existing lyrics Space because new Gradio Spaces need a paid HF plan.
+ML_UTILS_SPACE = os.getenv("ML_UTILS_SPACE", "IIITH-25-27/lyrics_Generator_for_emotion")
 
 # CORS Configuration
 # Allow any origin in development. In production, set ALLOWED_ORIGINS env variable

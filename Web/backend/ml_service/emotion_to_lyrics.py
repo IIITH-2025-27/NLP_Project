@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from constants import (
     LYRIC_GEN_MODEL_NAME,
     HF_LYRIC_GEN_SPACE_URL,
+    HF_LYRIC_GEN_API_NAME,
     LYRIC_GEN_MAX_WORDS,
     LYRIC_GEN_TEMPERATURE,
     LYRIC_GEN_TOP_K,
@@ -61,7 +62,7 @@ def generate_lyrics(emotion: str) -> dict:
     payload = [emotion.lower(), LYRIC_GEN_MAX_WORDS, LYRIC_GEN_TEMPERATURE, LYRIC_GEN_TOP_K, LYRIC_GEN_TOP_P]
     print(f"[lyrics] gradio payload: {{\"data\": {payload}}}")
 
-    result = client.predict(*payload)
+    result = client.predict(*payload, api_name=HF_LYRIC_GEN_API_NAME)
     print(f"[lyrics] gradio raw response: {result}")
 
     # Handle common response shapes from endpoint wrappers.

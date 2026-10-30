@@ -79,13 +79,15 @@ GRADIO_IMAGE_EMOTION_SPACE_URL = "https://iiith-25-27-image-to-emotion.hf.space"
 
 # Gradio Space for face extraction (MTCNN) and PHREM lyric evaluation.
 # Runs the torch-heavy work so the API server fits Render's free tier. Source: Web/ml_space/
-GRADIO_ML_UTILS_SPACE = "IIITH-25-27/lyricmind_ml_utils"
+# Space ID: ML_UTILS_SPACE in config.py (defaults to the lyrics Space).
 GRADIO_FACE_API_NAME = "/extract_face"
+GRADIO_TEXT_EMOTION_API_NAME = "/text_emotion"
 GRADIO_EVAL_API_NAME = "/evaluate_lyrics"
 
 # HF Space Configuration for Lyrics Generation
 # Gradio Space ID for lyric generation (used by gradio_client).
 HF_LYRIC_GEN_SPACE_URL = "IIITH-25-27/lyrics_Generator_for_emotion"
+HF_LYRIC_GEN_API_NAME = "/generate_lyrics"
 LYRIC_GEN_MODEL_NAME = "LyricGen-v2"
 LYRIC_GEN_MAX_WORDS = 120
 LYRIC_GEN_TEMPERATURE = 0.9

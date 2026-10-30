@@ -1,35 +1,29 @@
----
-title: LyricMind ML Utils
-emoji: 🎵
-colorFrom: purple
-colorTo: pink
-sdk: gradio
-sdk_version: 6.9.0
-app_file: app.py
-pinned: false
-short_description: Face extraction and PHREM lyric evaluation for LyricMind
----
+# LyricMind Models Space
 
-# LyricMind ML Utils
+Source for the Hugging Face Space `IIITH-25-27/lyrics_Generator_for_emotion`.
+It runs all the torch-heavy parts of LyricMind so the FastAPI backend on Render
+only needs lightweight dependencies.
 
-Hugging Face Space that runs the torch-heavy parts of the LyricMind backend, so
-the FastAPI server on Render only needs lightweight dependencies.
+New Gradio Spaces now need a paid HF plan, but Spaces created before that still
+run on free CPU, so everything is deployed into this existing Space.
 
 | API name           | Input                      | Output                     |
 |--------------------|----------------------------|----------------------------|
+| `/generate_lyrics` | emotion, max words, temperature, top-k, top-p | lyrics (unchanged original endpoint) |
 | `/extract_face`    | image                      | 224x224 PNG face crop      |
+| `/text_emotion`    | text                       | 28 GoEmotions scores       |
 | `/evaluate_lyrics` | lyrics, target emotion     | PHREM score (0-1)          |
 
-`evaluation_matric_PHREM.py` is copied from the repo's `Metric/` folder by
-`deploy_space.py`; edit it there, not on the Space.
+- `lyrics_generator.py` is the original Space code, unchanged.
+- `evaluation_matric_PHREM.py` is uploaded from the repo's `Metric/` folder by
+  `deploy_space.py`; edit it there, not on the Space.
+- The Space's own `README.md` (its config) is not overwritten.
 
 ## Deploy
 
 ```bash
 pip install huggingface_hub
-python Web/ml_space/deploy_space.py                       # IIITH-25-27/lyricmind_ml_utils
-python Web/ml_space/deploy_space.py <user>/<space-name>   # custom Space
+python3 Web/ml_space/deploy_space.py
 ```
 
-If you use a custom Space name, set `GRADIO_ML_UTILS_SPACE` in
-`Web/backend/constants.py` to match.
+The backend uses this Space by default (`ML_UTILS_SPACE` in `Web/backend/config.py`).
