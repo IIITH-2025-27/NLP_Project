@@ -53,5 +53,6 @@ elif ALLOWED_ORIGINS == "*":
     CORS_ORIGINS = ["*"]
     USE_CREDENTIALS = False  # Can't use credentials with wildcard
 else:
-    CORS_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS.split(",")]
+    # Browsers send Origin without a trailing slash, so drop any pasted one.
+    CORS_ORIGINS = [origin.strip().rstrip("/") for origin in ALLOWED_ORIGINS.split(",")]
     USE_CREDENTIALS = True

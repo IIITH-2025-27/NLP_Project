@@ -15,6 +15,8 @@ export default function DashboardChatSection({
   setPreprocessedModalOpen,
   handleRetryRequest,
   loading,
+  progressText,
+  slow,
   retryingAssistantId,
   regeneratedAssistantIds,
   pendingUserMessage,
@@ -58,6 +60,12 @@ export default function DashboardChatSection({
     cancelTextEdit();
   };
 
+  const slowNote = slow ? (
+    <span className="slow-server-note">
+      Still working. This can take up to a minute if the servers are waking up.
+    </span>
+  ) : null;
+
   const renderGeneratedStatus = (msg) => {
     if (!msg?.lyrics && retryingAssistantId !== msg?.id) return null;
 
@@ -69,7 +77,7 @@ export default function DashboardChatSection({
               <path d="M21 12a9 9 0 00-9-9"/>
               <path d="M3 12a9 9 0 009 9" opacity="0.35"/>
             </svg>
-            Regenerating lyrics...
+            {progressText || "Regenerating lyrics..."}
           </span>
         ) : msg.emotion?.meta?.is_error ? (
           msg.emotion?.meta?.description || msg.content || "Invalid input"
@@ -78,6 +86,7 @@ export default function DashboardChatSection({
         ) : (
           "Lyrics generated successfully ✓"
         )}
+        {retryingAssistantId === msg.id && slowNote}
       </p>
     );
   };
@@ -289,7 +298,7 @@ export default function DashboardChatSection({
                                   <path d="M21 12a9 9 0 00-9-9"/>
                                   <path d="M3 12a9 9 0 009 9" opacity="0.35"/>
                                 </svg>
-                                Regenerating lyrics...
+                                {progressText || "Regenerating lyrics..."}
                               </span>
                             ) : msg.emotion?.meta?.is_error ? (
                               msg.emotion?.meta?.description || msg.content || "Invalid input"
@@ -324,8 +333,9 @@ export default function DashboardChatSection({
                             <path d="M21 12a9 9 0 00-9-9"/>
                             <path d="M3 12a9 9 0 009 9" opacity="0.35"/>
                           </svg>
-                          Analyzing image...
+                          {progressText || (loading ? "Analyzing image..." : "Saving...")}
                         </span>
+                        {slowNote}
                       </p>
                     </>
                   ) : (
@@ -339,8 +349,9 @@ export default function DashboardChatSection({
                             <path d="M21 12a9 9 0 00-9-9"/>
                             <path d="M3 12a9 9 0 009 9" opacity="0.35"/>
                           </svg>
-                          Analyzing text...
+                          {progressText || (loading ? "Analyzing text..." : "Saving...")}
                         </span>
+                        {slowNote}
                       </p>
                     </>
                   )}
@@ -361,8 +372,9 @@ export default function DashboardChatSection({
                       <span className="dot"></span>
                     </div>
                     <span className="loading-text">
-                      {inputMode === 'image' ? 'Analyzing image...' : 'Analyzing text...'}
+                      {progressText || (inputMode === 'image' ? 'Analyzing image...' : 'Analyzing text...')}
                     </span>
+                    {slowNote}
                   </div>
                 </div>
               </div>

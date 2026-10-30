@@ -443,6 +443,7 @@
 .assistant-status-text {
   min-height: 24px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
 }
 
@@ -1044,6 +1045,7 @@
 /* ========== LOADING MESSAGE ========== */
 .loading-message {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0;
@@ -1089,6 +1091,15 @@
 .loading-text {
   color: #94a3b8;
   font-size: 0.875rem;
+  font-style: italic;
+}
+
+.slow-server-note {
+  display: block;
+  flex-basis: 100%; /* own line inside the flex status rows */
+  margin-top: 0.35rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
   font-style: italic;
 }
 /* ========== END LOADING MESSAGE ========== */
@@ -1885,6 +1896,8 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Mirror the front-camera preview like a selfie; the captured photo is not mirrored. */
+  transform: scaleX(-1);
 }
 
 .camera-modal-footer {

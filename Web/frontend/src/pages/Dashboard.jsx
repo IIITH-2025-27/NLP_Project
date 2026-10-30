@@ -86,7 +86,7 @@ export default function Dashboard() {
   };
 
   const { user, logout } = useAuth();
-  const { analyze, analyzeImage, loading, result, reset } = useAnalysis();
+  const { analyze, analyzeImage, loading, result, reset, progressText, slow } = useAnalysis();
 
   // Load chats from API on mount or when user changes
   useEffect(() => {
@@ -491,7 +491,7 @@ export default function Dashboard() {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" },
+        video: { facingMode: "user" }, // front camera: the input is a face
         audio: false 
       });
       setCameraStream(stream);
@@ -962,6 +962,8 @@ export default function Dashboard() {
           setPreprocessedModalOpen={setPreprocessedModalOpen}
           handleRetryRequest={handleRetryRequest}
           loading={loading}
+          progressText={progressText}
+          slow={slow}
           retryingAssistantId={retryingAssistantId}
           regeneratedAssistantIds={regeneratedAssistantIds}
           pendingUserMessage={pendingUserMessage}
@@ -991,6 +993,8 @@ export default function Dashboard() {
           handleRequestDropdownChange={handleRequestDropdownChange}
           loadingMessages={loadingMessages}
           isAnalyzing={loading || Boolean(pendingUserMessage)}
+          progressText={progressText}
+          slow={slow}
           requests={requests}
           selectedRequest={selectedRequest}
         />
