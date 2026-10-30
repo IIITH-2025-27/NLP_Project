@@ -1,13 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import CORS_ORIGINS, USE_CREDENTIALS
+from config import CORS_ORIGINS, USE_CREDENTIALS, IS_DEV
 
 # Import routers
 from api.routers import auth_router, chat_router, ml_router
 
 # Initialize FastAPI app
-app = FastAPI(title="LyricMind NLP API", version="1.0.0")
+# Interactive API docs only in development
+app = FastAPI(
+    title="LyricMind NLP API",
+    version="1.0.0",
+    docs_url="/docs" if IS_DEV else None,
+    redoc_url="/redoc" if IS_DEV else None,
+    openapi_url="/openapi.json" if IS_DEV else None,
+)
 
 # CORS middleware
 app.add_middleware(

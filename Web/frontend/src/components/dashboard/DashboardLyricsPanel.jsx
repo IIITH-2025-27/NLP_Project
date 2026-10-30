@@ -10,6 +10,7 @@ export default function DashboardLyricsPanel({
   slow,
   requests,
   selectedRequest,
+  isScoring,
 }) {
   const isErrorRequest = Boolean(selectedRequest?.emotion?.meta?.is_error);
   const emotionName = selectedRequest?.emotion?.emotion || "Unknown";
@@ -68,6 +69,7 @@ export default function DashboardLyricsPanel({
                 lyrics={selectedRequest.lyrics || "Invalid input"}
                 emotion={emotionName}
                 score={selectedRequest.lyrics_score}
+                scoring={isScoring}
               />
             </div>
             {isAnalyzing && (

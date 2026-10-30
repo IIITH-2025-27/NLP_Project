@@ -8,13 +8,13 @@ import "../assets/styles/auth.css";
 import girlWithMusic from "../assets/girl_with_music.mp4";
 
 export default function AuthPage() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const [mode, setMode] = useState("login"); // login | signup | verify-otp | forgot-password | verify-reset-otp | reset-password
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [resetEmail, setResetEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [otp, setOtp] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(sessionExpired ? "Your session expired. Please log in again." : "");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);

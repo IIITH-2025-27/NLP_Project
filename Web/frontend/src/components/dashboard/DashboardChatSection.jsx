@@ -476,7 +476,7 @@ export default function DashboardChatSection({
                     <span>Take Photo</span>
                   </button>
                 </div>
-                <span className="upload-hint">Max 10MB • JPG, PNG, GIF</span>
+                <span className="upload-hint">Max 25MB • JPG, PNG, WebP</span>
               </div>
             ) : (
               <div className="image-preview-container">

@@ -6,6 +6,10 @@ import DashboardSidebar from "../components/dashboard/DashboardSidebar";
 import DashboardChatSection from "../components/dashboard/DashboardChatSection";
 import DashboardLyricsPanel from "../components/dashboard/DashboardLyricsPanel";
 import { MAX_TEXT_LENGTH } from "../utils/constants";
+import { resizeImageFile } from "../utils/helpers";
+
+// Raw file limit before in-browser downscaling (the upload itself is ~100-300KB).
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 import "../assets/styles/dashboard.css";
 
 export default function Dashboard() {
@@ -35,6 +39,7 @@ export default function Dashboard() {
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [errorToast, setErrorToast] = useState("");
+  const [scoringIds, setScoringIds] = useState({}); // message ids whose PHREM score is loading
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -87,6 +92,37 @@ export default function Dashboard() {
 
   const { user, logout } = useAuth();
   const { analyze, analyzeImage, loading, result, reset, progressText, slow } = useAnalysis();
+
+  // PHREM scoring takes ~10s, so it runs after the lyrics are already shown and saved.
+  const scoreLyrics = async (messageId, analysisResult) => {
+    const lyrics = analysisResult.lyric_generation?.lyrics;
+    const emotion = analysisResult.emotion_detection?.emotion;
+    if (!lyrics || !emotion) return;
+
+    setScoringIds(prev => ({ ...prev, [messageId]: true }));
+    try {
+      const { lyrics_evaluation } = await apiService.evaluateLyrics(
+        lyrics,
+        emotion,
+        analysisResult.lyric_generation?.record_id
+      );
+      const score = lyrics_evaluation?.score;
+      if (typeof score === "number") {
+        await apiService.updateMessage(messageId, { lyrics_score: score });
+        setMessages(prev =>
+          prev.map(msg => (msg.id === messageId ? { ...msg, lyrics_score: score } : msg))
+        );
+      }
+    } catch (err) {
+      console.error("Lyrics scoring failed:", err);
+    } finally {
+      setScoringIds(prev => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+    }
+  };
 
   // Load chats from API on mount or when user changes
   useEffect(() => {
@@ -196,7 +232,6 @@ export default function Dashboard() {
               input_type: userMessageData.input_type,
               emotion: result.emotion_detection,
               lyrics: result.lyric_generation.lyrics,
-              lyrics_score: result.lyric_generation?.lyrics_evaluation?.score,
             };
 
             if (result.emotion_detection.preprocessed_image) {
@@ -214,6 +249,7 @@ export default function Dashboard() {
             setMessages(prev =>
               prev.map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
             );
+            scoreLyrics(updatedUserMessage.id, result);
 
             const requestMessages = messages
               .map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
@@ -267,7 +303,6 @@ export default function Dashboard() {
             input_type: resolvedInputType,
             emotion: result.emotion_detection,
             lyrics: result.lyric_generation.lyrics,
-            lyrics_score: result.lyric_generation?.lyrics_evaluation?.score,
           };
           if (result.emotion_detection.preprocessed_image) {
             updatePayload.preprocessed_image = result.emotion_detection.preprocessed_image;
@@ -280,6 +315,7 @@ export default function Dashboard() {
           
           // Update local messages state
           setMessages(prev => [...prev, updatedUserMessage]);
+          scoreLyrics(updatedUserMessage.id, result);
           
           // Update chat title with first user message
           const chat = chats.find(c => c.id === chatId);
@@ -453,30 +489,31 @@ export default function Dashboard() {
     }
   };
 
-  const handleImageSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file size (10MB max)
-      if (file.size > 10 * 1024 * 1024) {
-        alert("Image size must be less than 10MB");
-        return;
-      }
-
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
-        alert("Please select a valid image file");
-        return;
-      }
-
-      setSelectedImage(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+  // Validate, then downscale; returns { file, dataUrl } or null (after showing a toast).
+  const prepareImage = async (file) => {
+    if (file.size > MAX_IMAGE_BYTES) {
+      showErrorToast("Image size must be less than 25MB");
+      return null;
     }
+    if (!file.type.startsWith("image/")) {
+      showErrorToast("Please select a valid image file");
+      return null;
+    }
+    try {
+      return await resizeImageFile(file);
+    } catch (err) {
+      showErrorToast(getErrorMessage(err, "Could not read this image."));
+      return null;
+    }
+  };
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const prepared = await prepareImage(file);
+    if (!prepared) return;
+    setSelectedImage(prepared.file);
+    setImagePreview(prepared.dataUrl);
   };
 
   const handleRemoveImage = () => {
@@ -528,17 +565,17 @@ export default function Dashboard() {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0);
       
-      canvas.toBlob((blob) => {
+      canvas.toBlob(async (blob) => {
         if (blob) {
-          const file = new File([blob], "camera-photo.jpg", { type: "image/jpeg" });
-          const capturedPreview = canvas.toDataURL('image/jpeg');
-
-          if (cameraTarget === "edit") {
-            setEditImageFile(file);
-            setEditImagePreview(capturedPreview);
-          } else {
-            setSelectedImage(file);
-            setImagePreview(capturedPreview);
+          const prepared = await prepareImage(new File([blob], "camera-photo.jpg", { type: "image/jpeg" }));
+          if (prepared) {
+            if (cameraTarget === "edit") {
+              setEditImageFile(prepared.file);
+              setEditImagePreview(prepared.dataUrl);
+            } else {
+              setSelectedImage(prepared.file);
+              setImagePreview(prepared.dataUrl);
+            }
           }
 
           handleCameraClose();
@@ -862,26 +899,13 @@ export default function Dashboard() {
     }
   };
 
-  const handleImageEditSelect = (e) => {
+  const handleImageEditSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image size must be less than 10MB");
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file");
-      return;
-    }
-
-    setEditImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setEditImagePreview(reader.result);
-    };
-    reader.readAsDataURL(file);
+    const prepared = await prepareImage(file);
+    if (!prepared) return;
+    setEditImageFile(prepared.file);
+    setEditImagePreview(prepared.dataUrl);
   };
 
   const handleSubmitImageEdit = async () => {
@@ -997,6 +1021,7 @@ export default function Dashboard() {
           slow={slow}
           requests={requests}
           selectedRequest={selectedRequest}
+          isScoring={Boolean(selectedRequest && scoringIds[selectedRequest.id])}
         />
       </div>
 

@@ -9,6 +9,13 @@ from auth import get_current_user
 router = APIRouter(tags=["Chats & Messages"])
 
 
+def _oid(value: str, what: str) -> ObjectId:
+    """Parse an id from the URL; a malformed id is a 404, not a server error."""
+    if not ObjectId.is_valid(value):
+        raise HTTPException(status_code=404, detail=f"{what} not found")
+    return ObjectId(value)
+
+
 # ─── Chat Management ─────────────────────────────────────────────────────────
 
 @router.get("/chats")
@@ -47,7 +54,7 @@ def create_chat(body: CreateChatRequest, current_user=Depends(get_current_user))
 def get_chat(chat_id: str, current_user=Depends(get_current_user)):
     """Get a specific chat"""
     chat = chats_col.find_one({
-        "_id": ObjectId(chat_id),
+        "_id": _oid(chat_id, "Chat"),
         "user_id": str(current_user["_id"])
     })
     
@@ -70,7 +77,7 @@ def update_chat(chat_id: str, body: UpdateChatRequest, current_user=Depends(get_
     
     result = chats_col.update_one(
         {
-            "_id": ObjectId(chat_id),
+            "_id": _oid(chat_id, "Chat"),
             "user_id": str(current_user["_id"])
         },
         {"$set": update_data}
@@ -88,7 +95,7 @@ def delete_chat(chat_id: str, current_user=Depends(get_current_user)):
     """Delete a chat and all its messages"""
     # First, verify the chat belongs to the user
     chat = chats_col.find_one({
-        "_id": ObjectId(chat_id),
+        "_id": _oid(chat_id, "Chat"),
         "user_id": str(current_user["_id"])
     })
     
@@ -99,7 +106,7 @@ def delete_chat(chat_id: str, current_user=Depends(get_current_user)):
     messages_col.delete_many({"chat_id": chat_id})
     
     # Delete the chat
-    chats_col.delete_one({"_id": ObjectId(chat_id)})
+    chats_col.delete_one({"_id": _oid(chat_id, "Chat")})
     
     return {"message": "Chat and all messages deleted"}
 
@@ -111,7 +118,7 @@ def get_messages(chat_id: str, current_user=Depends(get_current_user)):
     """Get all messages for a specific chat"""
     # Verify chat belongs to user
     chat = chats_col.find_one({
-        "_id": ObjectId(chat_id),
+        "_id": _oid(chat_id, "Chat"),
         "user_id": str(current_user["_id"])
     })
     
@@ -136,7 +143,7 @@ def create_message(chat_id: str, body: CreateMessageRequest, current_user=Depend
     """Create a new message in a chat"""
     # Verify chat belongs to user
     chat = chats_col.find_one({
-        "_id": ObjectId(chat_id),
+        "_id": _oid(chat_id, "Chat"),
         "user_id": str(current_user["_id"])
     })
     
@@ -172,7 +179,7 @@ def create_message(chat_id: str, body: CreateMessageRequest, current_user=Depend
     
     # Update chat's updated_at timestamp
     chats_col.update_one(
-        {"_id": ObjectId(chat_id)},
+        {"_id": _oid(chat_id, "Chat")},
         {"$set": {"updated_at": datetime.utcnow()}}
     )
     
@@ -184,14 +191,14 @@ def delete_message(message_id: str, current_user=Depends(get_current_user)):
     """Delete a specific message"""
     # Verify message belongs to user
     message = messages_col.find_one({
-        "_id": ObjectId(message_id),
+        "_id": _oid(message_id, "Message"),
         "user_id": str(current_user["_id"])
     })
     
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
     
-    messages_col.delete_one({"_id": ObjectId(message_id)})
+    messages_col.delete_one({"_id": _oid(message_id, "Message")})
     
     return {"message": "Message deleted"}
 
@@ -200,7 +207,7 @@ def delete_message(message_id: str, current_user=Depends(get_current_user)):
 def update_message(message_id: str, body: UpdateMessageRequest, current_user=Depends(get_current_user)):
     """Update a specific message in-place"""
     message = messages_col.find_one({
-        "_id": ObjectId(message_id),
+        "_id": _oid(message_id, "Message"),
         "user_id": str(current_user["_id"])
     })
 
@@ -226,7 +233,7 @@ def update_message(message_id: str, body: UpdateMessageRequest, current_user=Dep
 
     if update_data:
         messages_col.update_one(
-            {"_id": ObjectId(message_id)},
+            {"_id": _oid(message_id, "Message")},
             {"$set": update_data}
         )
 
@@ -237,7 +244,7 @@ def update_message(message_id: str, body: UpdateMessageRequest, current_user=Dep
                 {"$set": {"updated_at": datetime.utcnow()}}
             )
 
-    updated_message = messages_col.find_one({"_id": ObjectId(message_id)})
+    updated_message = messages_col.find_one({"_id": _oid(message_id, "Message")})
     updated_message["_id"] = str(updated_message["_id"])
     updated_message["id"] = str(updated_message["_id"])
     return updated_message

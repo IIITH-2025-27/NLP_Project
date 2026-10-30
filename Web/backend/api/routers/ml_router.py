@@ -1,9 +1,13 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from datetime import datetime
 import base64
 
-from api.models import AnalyzeRequest, EmotionRequest
+from bson import ObjectId
+
+from api.models import AnalyzeRequest, EmotionRequest, EvaluateLyricsRequest
 from auth import get_current_user
+from rate_limit import check_rate_limit
 from ml_service import (
     predict_emotion,
     generate_lyrics,
@@ -13,6 +17,12 @@ from ml_service import (
 from database_service import image_emotion_data_col, emotion_lyrics_data_col
 
 router = APIRouter(tags=["ML/AI"])
+
+
+def ml_rate_limited_user(current_user=Depends(get_current_user)):
+    """Current user, limited to 90 ML calls per 10 min (each analysis makes 3) to protect the Spaces."""
+    check_rate_limit(f"ml:user:{current_user['_id']}", 90, 600)
+    return current_user
 
 
 def _to_data_url(image_bytes: bytes, content_type: str = "image/jpeg") -> str:
@@ -41,22 +51,25 @@ def _store_image_emotion_record(
 
 
 def _store_emotion_lyrics_record(emotion: str, lyric_result: dict, user_id: str):
+    """Insert the record (evaluation is added later by /evaluateLyrics); returns its id or None."""
     try:
-        emotion_lyrics_data_col.insert_one({
+        result = emotion_lyrics_data_col.insert_one({
             "emotion": emotion,
             "lyrics": lyric_result.get("lyrics"),
-            "lyrics_evaluation": lyric_result.get("lyrics_evaluation"),
+            "lyrics_evaluation": None,
             "user_id": user_id,
             "created_at": datetime.utcnow(),
         })
+        return str(result.inserted_id)
     except Exception as db_error:
         print(f"Warning: failed to store emotion_lyrics_data record: {db_error}")
+        return None
 
 
 # ─── Text Emotion Detection ────────────────────────────────────────────────────
 
 @router.post("/getEmotionFromText")
-def get_emotion_from_text_endpoint(body: AnalyzeRequest, current_user=Depends(get_current_user)):
+def get_emotion_from_text_endpoint(body: AnalyzeRequest, current_user=Depends(ml_rate_limited_user)):
     """Get emotion from text using HF Inference API"""
     if not body.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
@@ -88,7 +101,7 @@ def get_emotion_from_text_endpoint(body: AnalyzeRequest, current_user=Depends(ge
 @router.post("/getEmotionFromImage")
 async def get_emotion_from_image_endpoint(
     image: UploadFile = File(...),
-    current_user=Depends(get_current_user)
+    current_user=Depends(ml_rate_limited_user)
 ):
     """Detect emotion from image using IIITH-25-27/LyricMind_Models Gradio API"""
     # Validate file type
@@ -101,7 +114,8 @@ async def get_emotion_from_image_endpoint(
         raise HTTPException(status_code=400, detail="Image size must be less than 10MB")
     
     try:
-        emotion_result = predict_emotion_from_image(contents)
+        # Blocking Space calls (10-25s): keep them off the event loop so other requests aren't stalled.
+        emotion_result = await run_in_threadpool(predict_emotion_from_image, contents)
         
         # Check if result contains an error (e.g., no face detected)
         if "error" in emotion_result and "error_type" in emotion_result:
@@ -123,7 +137,8 @@ async def get_emotion_from_image_endpoint(
                     }
                 )
 
-        _store_image_emotion_record(
+        await run_in_threadpool(
+            _store_image_emotion_record,
             image_bytes=contents,
             content_type=image.content_type or "image/jpeg",
             input_filename=image.filename or "uploaded-image",
@@ -156,18 +171,12 @@ async def get_emotion_from_image_endpoint(
 # ─── Lyric Generation ──────────────────────────────────────────────────────────
 
 @router.post("/getLyricsForEmotion")
-def get_lyrics_for_emotion_endpoint(body: EmotionRequest, current_user=Depends(get_current_user)):
-    """Generate lyrics based on detected emotion"""
+def get_lyrics_for_emotion_endpoint(body: EmotionRequest, current_user=Depends(ml_rate_limited_user)):
+    """Generate lyrics based on detected emotion (scored separately via /evaluateLyrics)"""
     try:
         lyric_result = generate_lyrics(body.emotion)
 
-        evaluation = evaluate_generated_lyrics(
-            lyric_result.get("lyrics", ""),
-            body.emotion,
-        )
-        lyric_result["lyrics_evaluation"] = evaluation
-
-        _store_emotion_lyrics_record(
+        lyric_result["record_id"] = _store_emotion_lyrics_record(
             emotion=body.emotion,
             lyric_result=lyric_result,
             user_id=str(current_user["_id"]),
@@ -188,3 +197,22 @@ def get_lyrics_for_emotion_endpoint(body: EmotionRequest, current_user=Depends(g
                 "suggestion": "Please try again."
             }
         )
+
+
+# ─── Lyric Evaluation ──────────────────────────────────────────────────────────
+
+@router.post("/evaluateLyrics")
+def evaluate_lyrics_endpoint(body: EvaluateLyricsRequest, current_user=Depends(ml_rate_limited_user)):
+    """PHREM score for generated lyrics. Separate from generation so lyrics show up sooner."""
+    evaluation = evaluate_generated_lyrics(body.lyrics, body.emotion)
+
+    if body.record_id and ObjectId.is_valid(body.record_id):
+        try:
+            emotion_lyrics_data_col.update_one(
+                {"_id": ObjectId(body.record_id), "user_id": str(current_user["_id"])},
+                {"$set": {"lyrics_evaluation": evaluation}},
+            )
+        except Exception as db_error:
+            print(f"Warning: failed to store lyrics evaluation: {db_error}")
+
+    return {"lyrics_evaluation": evaluation}

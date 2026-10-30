@@ -5,9 +5,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # JWT Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "nlp-secret-key-change-in-production-2024")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    # No fallback: a default key committed to the repo would let anyone forge tokens.
+    raise RuntimeError("SECRET_KEY env var is required (any long random string)")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# /auth/signup creates accounts without email verification. Off unless explicitly enabled
+# (e.g. locally for test users); the app itself uses the OTP signup flow.
+ALLOW_LEGACY_SIGNUP = os.getenv("ALLOW_LEGACY_SIGNUP", "false").lower() == "true"
 
 # Database Configuration
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
@@ -34,6 +41,7 @@ ML_UTILS_SPACE = os.getenv("ML_UTILS_SPACE", "IIITH-25-27/lyrics_Generator_for_e
 # CORS Configuration
 # Allow any origin in development. In production, set ALLOWED_ORIGINS env variable
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "dev")
+IS_DEV = ALLOWED_ORIGINS == "dev"
 
 if ALLOWED_ORIGINS == "dev":
     # Development: Allow all localhost ports and common dev servers

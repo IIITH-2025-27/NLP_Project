@@ -15,6 +15,18 @@ const extractErrorMessage = (detail) => {
   return 'Request failed';
 };
 
+export const SESSION_EXPIRED_EVENT = "lyricmind:session-expired";
+
+/**
+ * A 401 on an authenticated, non-auth call means the token expired or is invalid.
+ * (Auth endpoints return 401 for wrong passwords, so they are excluded.)
+ */
+const checkSessionExpired = (response, endpoint, token) => {
+  if (response.status === 401 && token && !endpoint.startsWith("/auth/")) {
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+  }
+};
+
 /**
  * Base HTTP request handler
  */
@@ -37,6 +49,7 @@ const request = async (endpoint, options = {}) => {
       headers,
     });
 
+    checkSessionExpired(response, endpoint, token);
     const data = await response.json();
 
     if (!response.ok) {
@@ -133,6 +146,7 @@ const apiService = {
         body: formData,
       });
 
+      checkSessionExpired(response, "/getEmotionFromImage", token);
       const data = await response.json();
 
       if (!response.ok) {
@@ -152,6 +166,13 @@ const apiService = {
     request("/getLyricsForEmotion", {
       method: "POST",
       body: JSON.stringify({ emotion }),
+    }),
+
+  // PHREM quality score for generated lyrics (slow, so fetched after lyrics are shown)
+  evaluateLyrics: (lyrics, emotion, recordId) =>
+    request("/evaluateLyrics", {
+      method: "POST",
+      body: JSON.stringify({ lyrics, emotion, record_id: recordId }),
     }),
 
   // Legacy analyze endpoint (calls getEmotionFromText)

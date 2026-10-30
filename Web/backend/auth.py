@@ -51,6 +51,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
                 headers={"WWW-Authenticate": "Bearer"}
             )
         
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token - bad user ID",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
         user = users_col.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(

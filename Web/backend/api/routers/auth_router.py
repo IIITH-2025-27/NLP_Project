@@ -1,20 +1,27 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timedelta
 
 from database_service import users_col, otp_col
 from api.models import SignupRequest, LoginRequest, RequestOTPRequest, VerifyOTPRequest, ResendOTPRequest, ForgotPasswordRequest, VerifyResetOTPRequest, ResetPasswordRequest
 from auth import hash_password, verify_password, create_access_token, generate_otp, store_otp, verify_otp
 from email_service import send_otp_email
-from config import OTP_EXPIRE_MINUTES
+from config import OTP_EXPIRE_MINUTES, ALLOW_LEGACY_SIGNUP
+from rate_limit import rate_limit_ip, rate_limit_email
+
+# Per-email limit on sending OTP emails (signup, resend and password reset share it),
+# so nobody can flood an inbox.
+OTP_EMAILS_PER_15_MIN = 3
+OTP_EMAIL_FAILED = "Failed to send the verification email. Please try again later."
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 # ─── OTP-Based Authentication ──────────────────────────────────────────────────
 
-@router.post("/request-otp")
+@router.post("/request-otp", dependencies=[Depends(rate_limit_ip("otp-send", 10, 3600))])
 async def request_otp(body: RequestOTPRequest):
     """Request OTP for signup - sends email with verification code"""
+    rate_limit_email("otp-send", body.email, OTP_EMAILS_PER_15_MIN, 900)
     # Check if email is already registered
     if users_col.find_one({"email": body.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -30,10 +37,8 @@ async def request_otp(body: RequestOTPRequest):
     try:
         await send_otp_email(body.email, otp, body.name)
     except Exception as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Failed to send OTP email. Please check SMTP configuration: {str(e)}"
-        )
+        print(f"OTP email failed (signup) for {body.email}: {e}")
+        raise HTTPException(status_code=500, detail=OTP_EMAIL_FAILED)
     
     return {
         "message": "OTP sent successfully to your email",
@@ -41,7 +46,7 @@ async def request_otp(body: RequestOTPRequest):
     }
 
 
-@router.post("/verify-otp")
+@router.post("/verify-otp", dependencies=[Depends(rate_limit_ip("otp-verify", 30, 900))])
 def verify_otp_and_signup(body: VerifyOTPRequest):
     """Verify OTP and complete user signup"""
     # Verify OTP and get stored user data
@@ -73,9 +78,10 @@ def verify_otp_and_signup(body: VerifyOTPRequest):
     }
 
 
-@router.post("/resend-otp")
+@router.post("/resend-otp", dependencies=[Depends(rate_limit_ip("otp-send", 10, 3600))])
 async def resend_otp(body: ResendOTPRequest):
     """Resend OTP to user's email"""
+    rate_limit_email("otp-send", body.email, OTP_EMAILS_PER_15_MIN, 900)
     # Check if there's a pending OTP request
     otp_record = otp_col.find_one({"email": body.email})
     if not otp_record:
@@ -103,10 +109,8 @@ async def resend_otp(body: ResendOTPRequest):
     try:
         await send_otp_email(body.email, new_otp, otp_record["name"])
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to send OTP email: {str(e)}"
-        )
+        print(f"OTP email failed (resend) for {body.email}: {e}")
+        raise HTTPException(status_code=500, detail=OTP_EMAIL_FAILED)
     
     return {
         "message": "OTP resent successfully",
@@ -116,13 +120,19 @@ async def resend_otp(body: ResendOTPRequest):
 
 # ─── Password Reset with OTP ───────────────────────────────────────────────────
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", dependencies=[Depends(rate_limit_ip("otp-send", 10, 3600))])
 async def forgot_password(body: ForgotPasswordRequest):
     """Send OTP to user's email for password reset"""
-    # Check if user exists
+    rate_limit_email("otp-send", body.email, OTP_EMAILS_PER_15_MIN, 900)
+    response = {
+        "message": "If an account exists for this email, a password reset code has been sent.",
+        "email": body.email
+    }
+
+    # Same response whether or not the account exists, so this can't be used to probe emails.
     user = users_col.find_one({"email": body.email})
     if not user:
-        raise HTTPException(status_code=404, detail="No account found with this email")
+        return response
     
     # Generate OTP
     otp = generate_otp()
@@ -151,18 +161,13 @@ async def forgot_password(body: ForgotPasswordRequest):
     try:
         await send_otp_email(body.email, otp, user["name"], is_password_reset=True)
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to send OTP email: {str(e)}"
-        )
+        print(f"OTP email failed (password reset) for {body.email}: {e}")
+        raise HTTPException(status_code=500, detail=OTP_EMAIL_FAILED)
     
-    return {
-        "message": "Password reset OTP sent to your email",
-        "email": body.email
-    }
+    return response
 
 
-@router.post("/verify-reset-otp")
+@router.post("/verify-reset-otp", dependencies=[Depends(rate_limit_ip("otp-verify", 30, 900))])
 def verify_reset_otp(body: VerifyResetOTPRequest):
     """Verify OTP for password reset (doesn't change password yet)"""
     # Verify OTP without deleting (so user can use it for reset-password)
@@ -179,7 +184,7 @@ def verify_reset_otp(body: VerifyResetOTPRequest):
     }
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", dependencies=[Depends(rate_limit_ip("otp-verify", 30, 900))])
 def reset_password(body: ResetPasswordRequest):
     """Reset user password after OTP verification"""
     # Verify OTP and delete it after successful verification
@@ -218,6 +223,8 @@ def reset_password(body: ResetPasswordRequest):
 @router.post("/signup")
 def signup(body: SignupRequest):
     """Register a new user (legacy endpoint - use OTP-based signup instead)"""
+    if not ALLOW_LEGACY_SIGNUP:
+        raise HTTPException(status_code=404, detail="Not Found")
     if users_col.find_one({"email": body.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -241,9 +248,10 @@ def signup(body: SignupRequest):
     }
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit_ip("login", 30, 900))])
 def login(body: LoginRequest):
     """Authenticate user and return token"""
+    rate_limit_email("login", body.email, 10, 900)
     user = users_col.find_one({"email": body.email})
     if not user or not verify_password(body.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")

@@ -145,6 +145,11 @@ class EmotionRequest(BaseModel):
             raise ValueError(f'Emotion must be one of: {valid_emotions}')
         return v
 
+class EvaluateLyricsRequest(EmotionRequest):
+    """Request model for PHREM scoring of already generated lyrics"""
+    lyrics: str
+    record_id: Optional[str] = None  # emotion_lyrics_data record to attach the score to
+
 class ImageAnalyzeRequest(BaseModel):
     """Request model for image-based emotion analysis"""
     pass  # Image will be uploaded as multipart/form-data, not JSON

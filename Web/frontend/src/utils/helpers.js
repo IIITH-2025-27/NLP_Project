@@ -82,3 +82,40 @@ export const debounce = (func, wait) => {
     timeout = setTimeout(later, wait);
   };
 };
+
+/**
+ * Downscale an image in the browser before upload so uploads stay fast and the
+ * previews stored in MongoDB stay small. Longest side <= maxSize, re-encoded as JPEG.
+ * Returns { file, dataUrl }.
+ */
+export const resizeImageFile = (file, maxSize = 1280, quality = 0.85) =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; // JPEG has no alpha; avoid black backgrounds on transparent PNGs
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Could not process this image"));
+          const name = (file.name || "image").replace(/\.[^.]+$/, "") + ".jpg";
+          resolve({ file: new File([blob], name, { type: "image/jpeg" }), dataUrl });
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read this image. Please try a JPG or PNG."));
+    };
+    img.src = url;
+  });

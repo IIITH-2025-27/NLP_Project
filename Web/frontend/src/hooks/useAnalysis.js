@@ -7,7 +7,7 @@ const SLOW_NOTICE_MS = 8000;
 const STAGE_TEXT = {
   "emotion-text": "Detecting emotion...",
   "emotion-image": "Detecting face and emotion...",
-  lyrics: "Writing and scoring lyrics...",
+  lyrics: "Writing lyrics...",
 };
 
 /**
