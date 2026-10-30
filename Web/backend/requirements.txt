@@ -13,14 +13,5 @@ aiosmtplib==3.0.1
 email-validator==2.1.0
 gradio_client>=2.0.0
 
-# ML/AI Dependencies for image preprocessing
-torch>=2.0.0
-torchvision>=0.15.0
-facenet-pytorch>=2.5.0
-numpy>=1.24.0
 
-# PHREM lyric evaluation dependencies
-nltk>=3.8.1
-g2p-en>=2.1.0
-transformers>=4.40.0
-sentence-transformers>=2.7.0
+# Heavy ML (torch, MTCNN, PHREM) runs on the HF Space in Web/ml_space/

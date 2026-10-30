@@ -1,0 +1,12 @@
+torch
+torchvision
+# 2.6.0 pins torch<2.3 / Pillow<10.3, which conflicts with gradio and current torch.
+facenet-pytorch==2.5.3
+numpy
+Pillow
+
+# PHREM lyric evaluation
+nltk>=3.8.1
+g2p-en>=2.1.0
+transformers>=4.40.0
+sentence-transformers>=2.7.0

@@ -46,9 +46,6 @@ def get_gradio_client():
     if not GRADIO_AVAILABLE:
         raise Exception("gradio_client module not available")
     
-    if _client_error:
-        raise Exception(f"Previous client initialization failed: {_client_error}")
-    
     if _gradio_client is None:
         try:
             # Use HF token if available for authentication

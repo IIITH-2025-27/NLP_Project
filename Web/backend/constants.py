@@ -77,6 +77,12 @@ GRADIO_IMAGE_EMOTION_SPACE = "IIITH-25-27/image_to_emotion"  # Gradio Space on H
 GRADIO_IMAGE_EMOTION_API_NAME = "/predict"  # API endpoint name
 GRADIO_IMAGE_EMOTION_SPACE_URL = "https://iiith-25-27-image-to-emotion.hf.space"  # Direct URL
 
+# Gradio Space for face extraction (MTCNN) and PHREM lyric evaluation.
+# Runs the torch-heavy work so the API server fits Render's free tier. Source: Web/ml_space/
+GRADIO_ML_UTILS_SPACE = "IIITH-25-27/lyricmind_ml_utils"
+GRADIO_FACE_API_NAME = "/extract_face"
+GRADIO_EVAL_API_NAME = "/evaluate_lyrics"
+
 # HF Space Configuration for Lyrics Generation
 # Gradio Space ID for lyric generation (used by gradio_client).
 HF_LYRIC_GEN_SPACE_URL = "IIITH-25-27/lyrics_Generator_for_emotion"
