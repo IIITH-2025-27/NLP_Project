@@ -8,13 +8,17 @@ import DashboardLyricsPanel from "../components/dashboard/DashboardLyricsPanel";
 import { MAX_TEXT_LENGTH } from "../utils/constants";
 import { resizeImageFile } from "../utils/helpers";
 
+// Phones get a single-pane layout (chat or lyrics) with a bottom tab bar; matches the CSS breakpoint.
+const isMobileViewport = () => window.matchMedia("(max-width: 768px)").matches;
+
 // Raw file limit before in-browser downscaling (the upload itself is ~100-300KB).
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 import "../assets/styles/dashboard.css";
 
 export default function Dashboard() {
   const [text, setText] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isMobileViewport());
+  const [mobileView, setMobileView] = useState("chat"); // "chat" | "lyrics" (phones only)
   const [currentChatId, setCurrentChatId] = useState(null);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -92,6 +96,15 @@ export default function Dashboard() {
 
   const { user, logout } = useAuth();
   const { analyze, analyzeImage, loading, result, reset, progressText, slow } = useAnalysis();
+
+  const closeSidebarOnMobile = () => {
+    if (isMobileViewport()) setSidebarOpen(false);
+  };
+
+  // On phones, jump to the lyrics pane when a result is ready or a request is tapped.
+  const showLyricsOnMobile = () => {
+    if (isMobileViewport()) setMobileView("lyrics");
+  };
 
   // PHREM scoring takes ~10s, so it runs after the lyrics are already shown and saved.
   const scoreLyrics = async (messageId, analysisResult) => {
@@ -250,6 +263,7 @@ export default function Dashboard() {
               prev.map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
             );
             scoreLyrics(updatedUserMessage.id, result);
+            showLyricsOnMobile();
 
             const requestMessages = messages
               .map(msg => (msg.id === updatedUserMessage.id ? updatedUserMessage : msg))
@@ -316,6 +330,7 @@ export default function Dashboard() {
           // Update local messages state
           setMessages(prev => [...prev, updatedUserMessage]);
           scoreLyrics(updatedUserMessage.id, result);
+          showLyricsOnMobile();
           
           // Update chat title with first user message
           const chat = chats.find(c => c.id === chatId);
@@ -612,6 +627,9 @@ export default function Dashboard() {
   };
 
   const handleNewChat = () => {
+    closeSidebarOnMobile();
+    setMobileView("chat");
+
     // If current chat is already empty "New Chat", don't create another
     if (currentChat && currentChat.title === "New Chat" && messages.length === 0) {
       return; // Already on an empty new chat
@@ -623,6 +641,8 @@ export default function Dashboard() {
 
   // Switch to a different chat
   const handleChatSelect = async (chatId) => {
+    closeSidebarOnMobile();
+    setMobileView("chat");
     setCurrentChatId(chatId);
     setMessages([]);
     setSelectedRequestIndex(null);
@@ -736,6 +756,7 @@ export default function Dashboard() {
       if (requestIndex !== -1) {
         userSelectionScrollRef.current = true;
         setSelectedRequestIndex(requestIndex);
+        showLyricsOnMobile();
       }
       return;
     }
@@ -971,7 +992,7 @@ export default function Dashboard() {
         logout={logout}
       />
 
-      <div className="split-container">
+      <div className="split-container" data-mobile-view={mobileView}>
         <DashboardChatSection
           loadingChats={loadingChats}
           loadingMessages={loadingMessages}
@@ -1023,6 +1044,33 @@ export default function Dashboard() {
           selectedRequest={selectedRequest}
           isScoring={Boolean(selectedRequest && scoringIds[selectedRequest.id])}
         />
+
+        {/* Phones only (hidden by CSS on wider screens) */}
+        <nav className="mobile-view-tabs" aria-label="Switch view">
+          <button
+            className={mobileView === "chat" ? "active" : ""}
+            onClick={() => setMobileView("chat")}
+            aria-pressed={mobileView === "chat"}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            Chat
+          </button>
+          <button
+            className={mobileView === "lyrics" ? "active" : ""}
+            onClick={() => setMobileView("lyrics")}
+            aria-pressed={mobileView === "lyrics"}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            Lyrics
+            {loading && mobileView !== "lyrics" && <span className="tab-dot" aria-hidden="true" />}
+          </button>
+        </nav>
       </div>
 
       {/* Camera Modal */}

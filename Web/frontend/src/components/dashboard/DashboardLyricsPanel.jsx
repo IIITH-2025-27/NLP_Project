@@ -64,7 +64,6 @@ export default function DashboardLyricsPanel({
               )}
             </div>
             <div className="lyrics-text-section">
-              <h3>Generated Lyrics</h3>
               <LyricsCard
                 lyrics={selectedRequest.lyrics || "Invalid input"}
                 emotion={emotionName}

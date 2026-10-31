@@ -2,6 +2,7 @@
 .chat-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh; /* excludes the mobile browser URL bar when supported */
   background: #0f172a;
   color: #f1f5f9;
   position: relative;
@@ -2152,5 +2153,141 @@
   .preprocessed-display img {
     width: 200px;
     height: 200px;
+  }
+}
+
+
+/* ========== MOBILE: single pane + bottom tabs ========== */
+.mobile-view-tabs {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .chat-sidebar {
+    width: min(85vw, 300px);
+    height: 100dvh;
+  }
+
+  /* One pane at a time instead of a cramped chat/lyrics split */
+  .split-container[data-mobile-view="chat"] .lyrics-panel,
+  .split-container[data-mobile-view="lyrics"] .chat-main {
+    display: none;
+  }
+
+  .chat-main {
+    border-right: none;
+  }
+
+  .lyrics-panel {
+    flex: 1;
+    max-height: none;
+    border-top: none;
+  }
+
+  .lyrics-panel-header {
+    padding: 1rem;
+  }
+
+  .lyrics-panel-content {
+    padding: 1rem;
+  }
+
+  /* Overrides the older stacked layout: keep the emotion summary to one compact row */
+  .lyrics-emotion-compact {
+    flex-direction: row;
+    text-align: left;
+  }
+
+  .lyrics-emotion-info {
+    align-items: flex-start;
+  }
+
+  .chat-header {
+    height: 52px;
+    padding: 0 0.5rem;
+  }
+
+  /* Centered flex content gets clipped at the top when it overflows */
+  .welcome-screen {
+    justify-content: flex-start;
+    padding: 1.5rem 1rem;
+  }
+
+  .chat-input-container {
+    padding: 0.6rem 0.75rem;
+  }
+
+  .mobile-view-tabs {
+    display: flex;
+    flex-shrink: 0;
+    border-top: 1px solid #334155;
+    background: #0f172a;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mobile-view-tabs button {
+    flex: 1;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: inherit;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .mobile-view-tabs button.active {
+    color: #a5b4fc;
+  }
+
+  .mobile-view-tabs button.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 30%;
+    right: 30%;
+    height: 2px;
+    border-radius: 2px;
+    background: #6366f1;
+  }
+
+  .tab-dot {
+    position: absolute;
+    top: 10px;
+    left: calc(50% + 10px);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: tabDotPulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes tabDotPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Touch screens have no hover: keep the per-message action buttons visible */
+@media (hover: none) {
+  .history-delete {
+    opacity: 1;
+  }
+
+  .text-edit-icon-btn,
+  .text-retry-icon-btn,
+  .preprocessed-view-btn,
+  .image-edit-btn,
+  .image-retry-btn {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
